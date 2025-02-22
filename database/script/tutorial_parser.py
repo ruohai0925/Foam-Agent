@@ -4,6 +4,7 @@ import argparse
 import concurrent.futures
 from pathlib import Path
 import re
+import json
 
 def read_files_into_dict(base_path, stats=None):
     """
@@ -183,15 +184,29 @@ def save_cases_to_file(cases, output_dir):
     allrun_filepath = f"{output_dir}/openfoam_allrun_scripts.txt"
     tutorials_summary_filepath = f"{output_dir}/openfoam_tutorials_structure.txt"
     tutorial_filepath = f"{output_dir}/openfoam_tutorials_details.txt"
+    case_stats_filepath = f"{output_dir}/openfoam_case_stats.json"
     
     allrun_text = ''
     tutorials_summary_text = ''
     tutorials_text = ''
     
+    case_stats = {
+        'case_domain': set(),
+        'case_category': set(),
+        'case_solver': set()
+    }
+    
     for case in cases:
         case_name, case_domain, case_category, case_solver = (
             case["case_name"], case["domain"], case["category"], case["solver"]
         )
+        
+        if case_domain:
+            case_stats['case_domain'].add(case_domain)
+        if case_category:
+            case_stats['case_category'].add(case_category)
+        if case_solver:
+            case_stats['case_solver'].add(case_solver)
         
         # Save the case index
         case_index_text = "<index>\n"
@@ -257,6 +272,14 @@ def save_cases_to_file(cases, output_dir):
             
     with open(tutorial_filepath, "w", encoding="utf-8") as file:
         file.write(tutorials_text)
+    
+    case_stats['case_category'].add("None")
+    case_stats['case_category'] = list(case_stats['case_category'])
+    case_stats['case_domain'] = list(case_stats['case_domain'])
+    case_stats['case_solver'] = list(case_stats['case_solver'])
+    
+    with open(case_stats_filepath, "w", encoding="utf-8") as file:
+        json.dump(case_stats, file, ensure_ascii=False, indent=4)
             
 
 def get_commands_from_directory(directory_path):

@@ -13,6 +13,12 @@ def extract_field(field_name: str, text: str) -> str:
     match = re.search(fr"{field_name}:\s*(.*)", text)
     return match.group(1).strip() if match else "Unknown"
 
+def tokenize(text: str) -> str:
+    # Replace underscores with spaces
+    text = text.replace('_', ' ')
+    # Insert a space between a lowercase letter and an uppercase letter (global match)
+    text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)
+    return text.lower()
 
 def main():
    # Step 1: Parse command-line arguments
@@ -63,7 +69,7 @@ def main():
 
         # Create a Document instance
         documents.append(Document(
-            page_content=index_content+case_directory_structure,
+            page_content=tokenize(index_content+case_directory_structure),
             metadata={
                 "full_content": full_content,  # Store full `<case_begin> ... </case_end>`
                 "case_name": case_name,

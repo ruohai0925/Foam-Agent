@@ -14,6 +14,12 @@ def extract_field(field_name: str, text: str) -> str:
     match = re.search(fr"{field_name}:\s*(.*)", text)
     return match.group(1).strip() if match else "Unknown"
 
+def tokenize(text: str) -> str:
+    # Replace underscores with spaces
+    text = text.replace('_', ' ')
+    # Insert a space between a lowercase letter and an uppercase letter (global match)
+    text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)
+    return text.lower()
 
 def main():
     # Step 1: Parse command-line arguments
@@ -63,13 +69,16 @@ def main():
         case_domain = extract_field("case domain", index_content)
         case_category = extract_field("case category", index_content)
         case_solver = extract_field("case solver", index_content)
+        
+        # allrun script content is not sensitive to case domain and category
+        index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}</index>"
 
         # Extract allrun script content from full_content
         script_match = re.search(r"<allrun_script>([\s\S]*?)</allrun_script>", full_content)
         case_allrun_script = script_match.group(1).strip() if script_match else "Unknown"
 
         doc = Document(
-            page_content=index_content + "\n" + dir_structure,
+            page_content=tokenize(index_content + dir_structure),
             metadata={
                 "full_content": full_content,
                 "case_name": case_name,

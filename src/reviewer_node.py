@@ -5,14 +5,23 @@ from utils import invoke_llm, save_file, read_file, find_input_file, parse_file_
 def reviewer_node(state):
     """
     Reviewer node: Reviews the error logs and determines if the error
-    is related to the input file. If yes, triggers a rewrite.
-    If the error is fixed, returns control to the InputWriter node
-    (targeting the problematic subtask).
+    is related to the input file. 
     """
     config = state.config
-    if not state.error_command:
+    
+    if len(state.error_logs) == 0:
         print("No error to review.")
         return {"goto": "end"}
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     # Find the input file corresponding to error_command.
     file_path = find_input_file(state.case_dir, state.error_command)

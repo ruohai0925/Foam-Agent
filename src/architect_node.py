@@ -34,7 +34,10 @@ def architect_node(state):
     # Step 1: Translate user requirement.
     parse_system_prompt = ("Please transform the following user requirement into a standard case description using a structured format."
                            "The key elements should include case name, case domain, case category, and case solver."
-                           "Note: case domain must be one of [basic,combustion,compressible,discreteMethods,DNS,electromagnetics,financial,heatTransfer,incompressible,lagrangian,mesh,multiphase,resources,stressAnalysis].")
+                           f"Note: case domain must be one of {state.case_stats['case_domain']}."
+                           f"Note: case category must be one of {state.case_stats['case_category']}."
+                           f"Note: case solver must be one of {state.case_stats['case_solver']}."
+                           )
     parse_user_prompt = f"User requirement: {user_requirement}."
     
     parse_response = invoke_llm(config, parse_user_prompt, parse_system_prompt, pydantic_obj=CaseSummaryPydantic)
@@ -70,32 +73,35 @@ def architect_node(state):
     # Retrieve by case info
     case_info = f"case name: {state.case_name}\ncase domain: {state.case_domain}\ncase category: {state.case_category}\ncase solver: {state.case_solver}"
     
-    faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=state.config.searchdocs)[0]['full_content']
+    faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=state.config.searchdocs)
+    faiss_structure = faiss_structure[0]['full_content']
     
     # Retrieve by case info + directory structure
-    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=state.config.searchdocs)[0]['full_content']
+    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=state.config.searchdocs)
+    faiss_detailed = faiss_detailed[0]['full_content']
+    
     dir_structure = re.search(r"<directory_structure>(.*?)</directory_structure>", faiss_detailed, re.DOTALL).group(1).strip()
     print(f"Retrieved similar case structure: {dir_structure}")
     
     dir_counts = parse_directory_structure(dir_structure)
     dir_counts_str = ',\n'.join([f"There are {count} files in Directory: {directory}" for directory, count in dir_counts.items()])
-    print(f"{dir_counts_str}")
+    print(dir_counts_str)
     
     # Retrieve a reference Allrun script from the FAISS "Allrun" database.
-    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", faiss_structure, topk=state.config.searchdocs)
-    allrun_reference = ""
+    index_content = f"<index>\ncase name: {state.case_name}\ncase solver: {state.case_solver}</index>\n<directory_structure>{dir_structure}</directory_structure>"
+    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", index_content, topk=state.config.searchdocs)
+    allrun_reference = "Similar cases are ordered, with smaller numbers indicating greater similarity. For example, similar_case_1 is more similar than similar_case_2, and similar_case_2 is more similar than similar_case_3.\n"
     for idx, item in enumerate(faiss_allrun):
         allrun_reference += f"<similar_case_{idx + 1}>{item['full_content']}</similar_case_{idx + 1}>\n\n\n"
     
-    case_path = os.path.join(state.case_dir, "case_info.txt")
+    case_path = os.path.join(state.case_dir, "similar_case.txt")
     
     # TODO update all information to faiss_detailed
-    state.tutorial = faiss_detailed
-    state.tutorial_dir = case_path
-    state.dir_structure = dir_structure
+    state.tutorial_reference = faiss_detailed
+    state.case_path_reference = case_path
+    state.dir_structure_reference = dir_structure
     state.case_info = case_info
     state.allrun_reference = allrun_reference
-        
     
     save_file(case_path, f"{faiss_detailed}\n\n\n{allrun_reference}")
         
@@ -125,7 +131,7 @@ def architect_node(state):
         f"User Requirement: {user_requirement}\n\n"
         f"Reference Directory Structure (similar case): {dir_structure}\n\n{dir_counts_str}\n\n"        
         "Make sure you generate all the necessary files for the user's requirements."
-        "Please generate the output as structured JSON following the schema above."
+        "Please generate the output as structured JSON."
     )
     
     decompose_resposne = invoke_llm(config, decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanPydantic)

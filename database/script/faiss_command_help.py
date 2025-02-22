@@ -7,6 +7,13 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_core.documents import Document
 
+def tokenize(text: str) -> str:
+    # Replace underscores with spaces
+    text = text.replace('_', ' ')
+    # Insert a space between a lowercase letter and an uppercase letter (global match)
+    text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)
+    return text.lower()
+
 def main():
     # Step 1: Parse command-line arguments
     parser = argparse.ArgumentParser(
@@ -47,7 +54,7 @@ def main():
         
         # Create a Document instance
         documents.append(Document(
-            page_content=full_content, 
+            page_content=tokenize(command), 
             metadata={
                 "full_content": full_content,
                 "command": command,

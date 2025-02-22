@@ -55,9 +55,7 @@ def run_command(command_str):
         sys.exit(e.returncode)
 
 def main():
-    ## python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path "./_prompt.txt"
     args = parse_args()
-    
     print(args)
 
     # Set environment variables
@@ -91,9 +89,9 @@ def main():
         SCRIPTS.append(f"python database/script/faiss_tutorials_details.py --database_path=./database")
     
     # Main workflow
-    SCRIPTS = [
+    SCRIPTS.extend([
         f"python src/main.py --prompt_path='{args.prompt_path}'"
-    ]
+    ])
 
     print("Starting workflow...")
     for script in SCRIPTS:
@@ -101,4 +99,5 @@ def main():
     print("Workflow completed successfully.")
 
 if __name__ == "__main__":
+    ## python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path "./_prompt.txt"
     main()

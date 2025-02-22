@@ -1,6 +1,9 @@
 # Project
 *.pkl
 *.txt
+runs/
+database/faiss
+database/raw
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

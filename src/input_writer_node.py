@@ -34,10 +34,15 @@ def input_writer_node(state):
     subtasks = sorted(subtasks, key=compute_priority)
     
     writed_files = ""
+    dir_structure = {}
     
     for subtask in subtasks:
         file_name = subtask.file_name
         folder_name = subtask.folder_name
+        
+        if folder_name not in dir_structure:
+            dir_structure[folder_name] = []
+        dir_structure[folder_name].append(file_name)
         
         print(f"Generating file: {file_name} in folder: {folder_name}")
         
@@ -48,7 +53,7 @@ def input_writer_node(state):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
         # Retrieve a similar reference foamfile from the tutorial.
-        similar_file_text = state.tutorial
+        similar_file_text = state.tutorial_reference
         
         # Generate the complete foamfile.
         code_system_prompt = (
@@ -63,12 +68,10 @@ def input_writer_node(state):
         )
 
         code_user_prompt = (
-            f"Refer to the following similar case file content to ensure the generated file aligns with the requirements:\n{similar_file_text}\n"
             f"User requirement: {state.user_requirement}\n"
-            f"User case details: {state.case_info}\n"
+            f"Refer to the following similar case file content to ensure the generated file aligns with the user requirement:\n{similar_file_text}\n"
             "Please ensure that the generated file is complete, functional, and logically sound."
             f"The following are files content already generated: {writed_files}\n\n"
-            ""
             "Additionally, apply your domain expertise to verify that all numerical values are consistent with the user's requirements, maintaining accuracy and coherence."
         )
 
@@ -78,5 +81,7 @@ def input_writer_node(state):
         save_file(file_path, code_context)
         
         writed_files += f"<file>file_name: {file_name}, folder_name: {folder_name}, file content: {code_context}</file>\n"
+    
+    state.dir_structure = dir_structure
 
     return {"goto": "runner"}

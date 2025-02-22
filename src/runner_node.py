@@ -1,14 +1,12 @@
 # runner_node.py
 from typing import List
 import os
-from utils import (
-    invoke_llm, save_file, remove_files, remove_file,
-    run_command, check_foam_errors,
-    extract_commands_from_allrun_out, retrieve_faiss
-)
 from pydantic import BaseModel, Field
 import re
-
+from utils import (
+    invoke_llm, save_file, remove_files, remove_file,
+    run_command, check_foam_errors, retrieve_faiss
+)
 
 
 class CommandsPydantic(BaseModel):
@@ -42,16 +40,16 @@ def runner_node(state):
     
     command_system_prompt = (
         "You are an expert in OpenFOAM. The user will provide a list of available commands. "
-        "Your task is to generate only the necessary commands required to create an Allrun script for the given user case, based on the provided directory structure. "
+        "Your task is to generate only the necessary OpenFOAM commands required to create an Allrun script for the given user case, based on the provided directory structure. "
         "Return only the list of commands—no explanations, comments, or additional text."
     )
     
     command_user_prompt = (
         f"Available OpenFOAM commands for the Allrun script: {commands}\n"
-        f"Reference case directory structure: {state.dir_structure}\n"
+        f"Case directory structure: {state.dir_structure}\n"
         f"User case information: {state.case_info}\n"
         f"Reference Allrun scripts from similar cases: {state.allrun_reference}\n"
-        "Generate only the required command list—no extra text."
+        "Generate only the required OpenFOAM command list—no extra text."
     )
     
     command_response = invoke_llm(config, command_user_prompt, command_system_prompt, pydantic_obj=CommandsPydantic)
@@ -61,6 +59,8 @@ def runner_node(state):
         raise ValueError("Failed to generate subtasks.")
 
     print(f"Need {len(command_response.commands)} commands.")
+    
+    state.commands = command_response.commands
     
     commands_help = []
     for command in command_response.commands:
@@ -77,8 +77,11 @@ def runner_node(state):
     
     allrun_user_prompt = (
         f"User requirement: {state.user_requirement}\n"
-        f"Reference case directory structure: {state.dir_structure}\n"
-        f"User case details: {state.case_info}\n"
+        f"Case directory structure: {state.dir_structure}\n"
+        f"User case infomation: {state.case_info}\n"
+        "All run scripts for these similar cases are for reference only and may not be correct, as you might be a different case solver or have a different directory structure. " 
+        "You need to rely on your OpenFOAM and physics knowledge to discern this, and pay more attention to user requirements, " 
+        "as your ultimate goal is to fulfill the user's requirements and generate an allrun script that meets those requirements."
         "Generate the Allrun script strictly based on the above information. Do not include explanations, comments, or additional text. Put the code in ``` tags."
     )
     
@@ -99,8 +102,7 @@ def runner_node(state):
     
     # Check for errors.
     state.error_logs = check_foam_errors(case_dir)
-    state.commands_run = extract_commands_from_allrun_out(out_file)
-    
+
     if len(state.error_logs) > 0:
         print("Errors detected in the Allrun execution.")
         print(state.error_logs)

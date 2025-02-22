@@ -43,6 +43,13 @@ def invoke_llm(
     else:
         return llm.invoke(messages)
 
+def tokenize(text: str) -> str:
+    # Replace underscores with spaces
+    text = text.replace('_', ' ')
+    # Insert a space between a lowercase letter and an uppercase letter (global match)
+    text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)
+    return text.lower()
+
 def save_file(path: str, content: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'w') as f:
@@ -181,6 +188,9 @@ def retrieve_faiss(database_name: str, query: str, topk: int = 1) -> dict:
     
     if database_name not in FAISS_DB_CACHE:
         raise ValueError(f"Database '{database_name}' is not loaded.")
+    
+    # Tokenize the query
+    query = tokenize(query)
     
     vectordb = FAISS_DB_CACHE[database_name]
     docs = vectordb.similarity_search(query, k=topk)

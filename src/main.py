@@ -4,12 +4,14 @@ from typing import List, Optional
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 import argparse
+from pathlib import Path
 
 from config import Config
 from architect_node import architect_node
 from input_writer_node import input_writer_node
 from runner_node import runner_node
 from reviewer_node import reviewer_node
+import json
 
 @dataclass
 class GraphState:
@@ -31,6 +33,8 @@ def main(user_requirement: str):
     # Create the initial state.
     state = GraphState(user_requirement=user_requirement, config=config)
     
+    state.case_stats = json.load(open(f"{state.config.database_path}/raw/openfoam_case_stats.json", "r"))
+    
     architect_node(state)
     
     input_writer_node(state)
@@ -39,7 +43,7 @@ def main(user_requirement: str):
     
     # reviewer_node(state)
     
-    # print(state)
+    print(state)
     
     
     
@@ -74,7 +78,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prompt_path",
         type=str,
-        required=True,
+        default=f"{Path(__file__).parent.parent}/demo_prompt.txt",
         help="User requirement file path for the workflow.",
     )
     
