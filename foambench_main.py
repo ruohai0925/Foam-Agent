@@ -99,5 +99,5 @@ def main():
     print("Workflow completed successfully.")
 
 if __name__ == "__main__":
-    ## python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path "./_prompt.txt"
+    ## python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path "./user_requirement.txt"
     main()
