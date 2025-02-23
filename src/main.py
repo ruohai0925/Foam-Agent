@@ -26,10 +26,7 @@ class GraphState:
     error_content: Optional[str] = None
     loop_count: int = 0
 
-def main(user_requirement: str):
-    # Initialize configuration.
-    config = Config()
-
+def main(user_requirement: str, config: Config):
     # Create the initial state.
     state = GraphState(user_requirement=user_requirement, config=config)
     
@@ -81,10 +78,22 @@ if __name__ == "__main__":
         default=f"{Path(__file__).parent.parent}/demo_prompt.txt",
         help="User requirement file path for the workflow.",
     )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="",
+        help="Output directory for the workflow.",
+    )
     
     args = parser.parse_args()
+    print(args)
+    
+    # Initialize configuration.
+    config = Config()
+    if args.output_dir != "":
+        config.case_dir = args.output_dir
     
     with open(args.prompt_path, 'r') as f:
         user_requirement = f.read()
     
-    main(user_requirement)
+    main(user_requirement, config)

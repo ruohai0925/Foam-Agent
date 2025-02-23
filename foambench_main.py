@@ -88,9 +88,10 @@ def main():
     if not os.path.exists("database/faiss/openfoam_tutorials_details"):
         SCRIPTS.append(f"python database/script/faiss_tutorials_details.py --database_path=./database")
     
+    print(f"python src/main.py --prompt_path='{args.prompt_path} --output_dir='{args.output}'")
     # Main workflow
     SCRIPTS.extend([
-        f"python src/main.py --prompt_path='{args.prompt_path}'"
+        f"python src/main.py --prompt_path='{args.prompt_path}' --output_dir='{args.output}'"
     ])
 
     print("Starting workflow...")
