@@ -60,7 +60,6 @@ def main():
 
     # Set environment variables
     WM_PROJECT_DIR = args.openfoam_path
-
     # Check if OPENAI_API_KEY is available in the environment
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if not openai_api_key:

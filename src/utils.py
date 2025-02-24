@@ -7,7 +7,11 @@ from pydantic import BaseModel
 from langchain.chat_models import init_chat_model
 from langchain_community.vectorstores import FAISS
 from langchain_openai.embeddings import OpenAIEmbeddings
+from langchain_aws import ChatBedrock
+from langchain_anthropic import ChatAnthropic
 from pathlib import Path
+import tracking_aws
+from langchain_aws import ChatBedrockConverse
 
 # Global dictionary to store loaded FAISS databases
 FAISS_DB_CACHE = {}
@@ -29,8 +33,16 @@ def invoke_llm(
     model_version = getattr(config, "model_version", "gpt-4o")
     temperature = getattr(config, "temperature", 0.1)
     model_provider = getattr(config, "model_provider", "openai")
-    
-    llm = init_chat_model(model_version, model_provider=model_provider, temperature=temperature)
+
+    if model_provider.lower() == "bedrock":
+        bedrock_runtime = tracking_aws.new_default_client()
+        llm = ChatBedrockConverse(client=bedrock_runtime, model_id=model_version, temperature=temperature, max_tokens=8192)
+    elif model_provider.lower() == "anthropic":
+        llm = ChatAnthropic(model=model_version, temperature=temperature)
+    elif model_provider.lower() == "openai":
+        llm = init_chat_model(model_version, model_provider=model_provider, temperature=temperature)
+    else:
+        raise ValueError(f"{model_provider} is not a supported model_provider")
     
     messages = []
     if system_prompt:
@@ -79,10 +91,12 @@ def remove_file(path: str) -> None:
 
 def run_command(script_path: str, out_file: str, err_file: str, working_dir: str) -> None:
     print(f"Executing script {script_path} in {working_dir}")
-    
+    os.chmod(script_path, 0o777)
+    openfoam_dir = os.getenv("WM_PROJECT_DIR")
+    command = f"source {openfoam_dir}/etc/bashrc && bash {os.path.abspath(script_path)}"
     with open(out_file, 'w') as out, open(err_file, 'w') as err:
         process = subprocess.Popen(
-            ['bash', script_path],
+            ['bash', "-c", command],
             cwd=working_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

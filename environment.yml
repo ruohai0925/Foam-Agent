@@ -99,3 +99,5 @@ dependencies:
       - urllib3==2.3.0
       - yarl==1.18.3
       - zstandard==0.23.0
+      - boto3==1.36.26
+      - langchain_aws==0.2.13
