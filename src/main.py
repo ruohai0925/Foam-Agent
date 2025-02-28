@@ -33,16 +33,19 @@ def main(user_requirement: str, config: Config):
     state.case_stats = json.load(open(f"{state.config.database_path}/raw/openfoam_case_stats.json", "r"))
     
     architect_node(state)
-    
     input_writer_node(state)
     
-    runner_node(state)
-    
-    # reviewer_node(state)
-    
+    max_loop = config.max_loop
+    for i in range(max_loop):
+        runner_response = runner_node(state)
+        if runner_response["goto"] == "end":
+            break
+        
+        reviewer_response = reviewer_node(state)
+        if reviewer_response["goto"] == "end":
+            break
+        
     print(state)
-    
-    
     
     # # Build the state graph.
     # graph_builder = StateGraph(GraphState)
@@ -69,13 +72,14 @@ def main(user_requirement: str, config: Config):
     # print("Workflow finished.")
 
 if __name__ == "__main__":
+    # python main.py
     parser = argparse.ArgumentParser(
         description="Run the OpenFOAM workflow."
     )
     parser.add_argument(
         "--prompt_path",
         type=str,
-        default=f"{Path(__file__).parent.parent}/demo_prompt.txt",
+        default=f"{Path(__file__).parent.parent}/user_requirement.txt",
         help="User requirement file path for the workflow.",
     )
     parser.add_argument(

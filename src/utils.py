@@ -13,6 +13,9 @@ from pathlib import Path
 import tracking_aws
 from langchain_aws import ChatBedrockConverse
 
+from pydantic import BaseModel, Field
+from typing import List
+
 # Global dictionary to store loaded FAISS databases
 FAISS_DB_CACHE = {}
 DATABASE_DIR = f"{Path(__file__).resolve().parent.parent}/database/faiss"
@@ -23,6 +26,15 @@ FAISS_DB_CACHE = {
     "openfoam_tutorials_details": FAISS.load_local(f"{DATABASE_DIR}/openfoam_tutorials_details", OpenAIEmbeddings(model="text-embedding-3-small"), allow_dangerous_deserialization=True),
     "openfoam_command_help": FAISS.load_local(f"{DATABASE_DIR}/openfoam_command_help", OpenAIEmbeddings(model="text-embedding-3-small"), allow_dangerous_deserialization=True)
 }
+
+class FoamfilePydantic(BaseModel):
+    file_name: str = Field(description="Name of the OpenFOAM input file")
+    folder_name: str = Field(description="Folder where the foamfile should be stored")
+    content: str = Field(description="Content of the OpenFOAM file, written in OpenFOAM dictionary format")
+
+class FoamPydantic(BaseModel):
+    list_foamfile: List[FoamfilePydantic] = Field(description="List of OpenFOAM configuration files")
+    
 
 def invoke_llm(
     config: object,
