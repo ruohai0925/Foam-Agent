@@ -45,13 +45,15 @@ def reviewer_node(state):
             f"Error logs: {state.error_logs}\n"
             f"Previous error logs: {state.last_error_logs}\n"
             f"Previous reviewer analysis: {state.last_review_content}\n\n"
-            f"I have modified the files according to your previous suggestions. If the error persists, please provide further guidance."
+            f"User Requirement: {state.user_requirement}\n\n"
+            f"I have modified the files according to your previous suggestions. If the error persists, please provide further guidance. Make sure your suggestions adhere to user requirements and do not contradict it."
         )
     else:
         reviewer_user_prompt = (
             f"Project Foam files: {str(state.foamfiles)}\n"
             f"Error logs: {state.error_logs}\n"
-            "Please review the error logs and provide guidance on how to resolve the reported errors."
+            f"User Requirement: {state.user_requirement}\n"
+            "Please review the error logs and provide guidance on how to resolve the reported errors. Make sure your suggestions adhere to user requirements and do not contradict it."
         ) 
     
 
@@ -68,7 +70,8 @@ def reviewer_node(state):
         f"Project Foam files: {str(state.foamfiles)}\n"
         f"Error logs: {state.error_logs}\n"
         f"Reviewer analysis: {review_content}\n\n"
-        "Please update the relevant OpenFOAM files to resolve the reported errors, ensuring that all modifications strictly adhere to the specified formats."
+        f"User Requirement: {state.user_requirement}\n\n"
+        "Please update the relevant OpenFOAM files to resolve the reported errors, ensuring that all modifications strictly adhere to the specified formats. Ensure all modifications adhere to user requirement."
     )
     rewrite_response = invoke_llm(config, rewrite_user_prompt, REWRITE_SYSTEM_PROMPT, pydantic_obj=FoamPydantic)
     
