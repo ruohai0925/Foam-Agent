@@ -17,6 +17,7 @@ from typing import List
 import time
 import random
 from botocore.exceptions import ClientError
+import shutil
 
 
 # Global dictionary to store loaded FAISS databases
@@ -124,6 +125,22 @@ def remove_file(path: str) -> None:
     if os.path.exists(path):
         os.remove(path)
         print(f"Removed file {path}")
+
+def remove_numeric_folders(case_dir: str) -> None:
+    """
+    Remove all folders in case_dir that contain only numbers, except for the "0" folder.
+    
+    Args:
+        case_dir (str): The directory path to process
+    """
+    for item in os.listdir(case_dir):
+        item_path = os.path.join(case_dir, item)
+        if os.path.isdir(item_path) and item != "0" and item.isdigit():
+            try:
+                shutil.rmtree(item_path)
+                print(f"Removed numeric folder: {item_path}")
+            except Exception as e:
+                print(f"Error removing folder {item_path}: {str(e)}")
 
 def run_command(script_path: str, out_file: str, err_file: str, working_dir: str) -> None:
     print(f"Executing script {script_path} in {working_dir}")

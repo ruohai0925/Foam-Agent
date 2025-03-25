@@ -10,13 +10,14 @@ REVIEWER_SYSTEM_PROMPT = (
     "When an error indicates that a specific keyword is undefined (for example, 'div(phi,(p|rho)) is undefined'), your response must propose a solution that simply defines that exact keyword as shown in the error log. "
     "Do not reinterpret or modify the keyword (e.g., do not treat '|' as 'or'); instead, assume it is meant to be taken literally. "
     "Propose ideas on how to resolve the errors, but do not modify any files directly. "
+    "Please do not propose solutions that require modifying any parameters declared in the user requirement, try other approaches instead."
     "The user will supply all relevant foam files along with the error logs, and within the logs, you will find both the error content and the corresponding error command indicated by the log file name."
 )
-
 
 REWRITE_SYSTEM_PROMPT = (
     "You are an expert in OpenFOAM simulation and numerical modeling. "
     "Your task is to modify and rewrite the necessary OpenFOAM files to fix the reported error. "
+    "Please do not propose solutions that require modifying any parameters declared in the user requirement, try other approaches instead."
     "The user will provide the error content, error command, reviewer's suggestions, and all relevant foam files. "
     "Only return files that require rewriting, modification, or addition; do not include files that remain unchanged. "
     "Return the complete, corrected file contents in the following JSON format: "
@@ -41,18 +42,18 @@ def reviewer_node(state):
     # Analysis the reason and give the method to fix the error.
     if hasattr(state, "last_review_content"):
         reviewer_user_prompt = (
-            f"Project Foam files: {str(state.foamfiles)}\n"
-            f"Error logs: {state.error_logs}\n"
-            f"Previous error logs: {state.last_error_logs}\n"
-            f"Previous reviewer analysis: {state.last_review_content}\n\n"
-            f"User Requirement: {state.user_requirement}\n\n"
+            f"<foamfiles>{str(state.foamfiles)}</foamfiles>\n"
+            f"<error_logs>{state.error_logs}</error_logs>\n"
+            f"<previous_error_logs>{state.last_error_logs}</previous_error_logs>\n"
+            f"<previous_reviewer_analysis>{state.last_review_content}</previous_reviewer_analysis>\n\n"
+            f"<user_requirement>{state.user_requirement}</user_requirement>\n\n"
             f"I have modified the files according to your previous suggestions. If the error persists, please provide further guidance. Make sure your suggestions adhere to user requirements and do not contradict it."
         )
     else:
         reviewer_user_prompt = (
-            f"Project Foam files: {str(state.foamfiles)}\n"
-            f"Error logs: {state.error_logs}\n"
-            f"User Requirement: {state.user_requirement}\n"
+            f"<foamfiles>{str(state.foamfiles)}</foamfiles>\n"
+            f"<error_logs>{state.error_logs}</error_logs>\n"
+            f"<user_requirement>{state.user_requirement}</user_requirement>\n"
             "Please review the error logs and provide guidance on how to resolve the reported errors. Make sure your suggestions adhere to user requirements and do not contradict it."
         ) 
     
@@ -67,10 +68,10 @@ def reviewer_node(state):
 
     # Return the revised foamfile content.
     rewrite_user_prompt = (
-        f"Project Foam files: {str(state.foamfiles)}\n"
-        f"Error logs: {state.error_logs}\n"
-        f"Reviewer analysis: {review_content}\n\n"
-        f"User Requirement: {state.user_requirement}\n\n"
+        f"<foamfiles>{str(state.foamfiles)}</foamfiles>\n"
+        f"<error_logs>{state.error_logs}</error_logs>\n"
+        f"<reviewer_analysis>{review_content}</reviewer_analysis>\n\n"
+        f"<user_requirement>{state.user_requirement}</user_requirement>\n\n"
         "Please update the relevant OpenFOAM files to resolve the reported errors, ensuring that all modifications strictly adhere to the specified formats. Ensure all modifications adhere to user requirement."
     )
     rewrite_response = invoke_llm(config, rewrite_user_prompt, REWRITE_SYSTEM_PROMPT, pydantic_obj=FoamPydantic)

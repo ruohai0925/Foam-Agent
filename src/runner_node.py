@@ -26,6 +26,7 @@ def runner_node(state):
     remove_files(case_dir, prefix="log")
     remove_file(err_file)
     remove_file(out_file)
+    remove_numeric_folders(case_dir)
     
     # Execute the Allrun script.
     run_command(allrun_file_path, out_file, err_file, case_dir)
