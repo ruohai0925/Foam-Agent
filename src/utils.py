@@ -7,14 +7,17 @@ from pydantic import BaseModel
 from langchain.chat_models import init_chat_model
 from langchain_community.vectorstores import FAISS
 from langchain_openai.embeddings import OpenAIEmbeddings
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrock, ChatBedrockConverse
 from langchain_anthropic import ChatAnthropic
 from pathlib import Path
 import tracking_aws
-from langchain_aws import ChatBedrockConverse
 
 from pydantic import BaseModel, Field
 from typing import List
+import time
+import random
+from botocore.exceptions import ClientError
+
 
 # Global dictionary to store loaded FAISS databases
 FAISS_DB_CACHE = {}
@@ -35,15 +38,15 @@ class FoamfilePydantic(BaseModel):
 class FoamPydantic(BaseModel):
     list_foamfile: List[FoamfilePydantic] = Field(description="List of OpenFOAM configuration files")
     
-
 def invoke_llm(
     config: object,
     user_prompt: str,
     system_prompt: Optional[str] = None,
     pydantic_obj: Optional[Type[BaseModel]] = None,
+    max_retries: int = 10
 ) -> Any:
     model_version = getattr(config, "model_version", "gpt-4o")
-    temperature = getattr(config, "temperature", 0.1)
+    temperature = getattr(config, "temperature", 0)
     model_provider = getattr(config, "model_provider", "openai")
 
     if model_provider.lower() == "bedrock":
@@ -61,11 +64,32 @@ def invoke_llm(
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": user_prompt})
     
-    if pydantic_obj:
-        structured_llm = llm.with_structured_output(pydantic_obj)
-        return structured_llm.invoke(messages)
-    else:
-        return llm.invoke(messages)
+    retry_count = 0
+    while True:
+        try:
+            if pydantic_obj:
+                structured_llm = llm.with_structured_output(pydantic_obj)
+                return structured_llm.invoke(messages)
+            else:
+                return llm.invoke(messages)
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'Throttling' or e.response['Error']['Code'] == 'TooManyRequestsException':
+                retry_count += 1
+                if retry_count > max_retries:
+                    raise Exception(f"Maximum retries ({max_retries}) exceeded: {str(e)}")
+                
+                base_delay = 1.0
+                max_delay = 60.0
+                delay = min(max_delay, base_delay * (2 ** (retry_count - 1)))
+                jitter = random.uniform(0, 0.1 * delay)
+                sleep_time = delay + jitter
+                
+                print(f"ThrottlingException occurred: {str(e)}. Retrying in {sleep_time:.2f} seconds (attempt {retry_count}/{max_retries})")
+                time.sleep(sleep_time)
+            else:
+                raise e
+        except Exception as e:
+            raise e
 
 def tokenize(text: str) -> str:
     # Replace underscores with spaces
