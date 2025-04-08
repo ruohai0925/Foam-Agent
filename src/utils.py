@@ -18,7 +18,7 @@ import time
 import random
 from botocore.exceptions import ClientError
 import shutil
-
+from config import Config
 
 # Global dictionary to store loaded FAISS databases
 FAISS_DB_CACHE = {}
@@ -142,11 +142,13 @@ def remove_numeric_folders(case_dir: str) -> None:
             except Exception as e:
                 print(f"Error removing folder {item_path}: {str(e)}")
 
-def run_command(script_path: str, out_file: str, err_file: str, working_dir: str) -> None:
+def run_command(script_path: str, out_file: str, err_file: str, working_dir: str, config : Config) -> None:
     print(f"Executing script {script_path} in {working_dir}")
     os.chmod(script_path, 0o777)
     openfoam_dir = os.getenv("WM_PROJECT_DIR")
     command = f"source {openfoam_dir}/etc/bashrc && bash {os.path.abspath(script_path)}"
+    timeout_seconds = config.max_time_limit
+
     with open(out_file, 'w') as out, open(err_file, 'w') as err:
         process = subprocess.Popen(
             ['bash', "-c", command],
@@ -156,9 +158,27 @@ def run_command(script_path: str, out_file: str, err_file: str, working_dir: str
             stdin=subprocess.DEVNULL,
             text=True
         )
-        stdout, stderr = process.communicate()
-        out.write(stdout)
-        err.write(stderr)
+        # stdout, stderr = process.communicate()
+        # out.write(stdout)
+        # err.write(stderr)
+
+        try:
+            stdout, stderr = process.communicate(timeout=timeout_seconds)
+            out.write(stdout)
+            err.write(stderr)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+            timeout_message = (
+                "OpenFOAM execution took too long. "
+                "This case, if set up right, does not require such large execution times.\n"
+            )
+            out.write(timeout_message + stdout)
+            err.write(timeout_message + stderr)
+            print(f"Execution timed out: {script_path}")
+
+    
+
     print(f"Executed script {script_path}")
 
 def check_foam_errors(directory: str) -> list:

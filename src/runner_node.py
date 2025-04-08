@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 import re
 from utils import (
     invoke_llm, save_file, remove_files, remove_file,
-    run_command, check_foam_errors, retrieve_faiss
+    run_command, check_foam_errors, retrieve_faiss, remove_numeric_folders
 )
 
 
@@ -29,7 +29,7 @@ def runner_node(state):
     remove_numeric_folders(case_dir)
     
     # Execute the Allrun script.
-    run_command(allrun_file_path, out_file, err_file, case_dir)
+    run_command(allrun_file_path, out_file, err_file, case_dir, config)
     
     # Check for errors.
     state.error_logs = check_foam_errors(case_dir)
