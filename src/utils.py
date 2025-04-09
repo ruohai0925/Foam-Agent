@@ -128,19 +128,27 @@ def remove_file(path: str) -> None:
 
 def remove_numeric_folders(case_dir: str) -> None:
     """
-    Remove all folders in case_dir that contain only numbers, except for the "0" folder.
+    Remove all folders in case_dir that represent numeric values, including those with decimal points,
+    except for the "0" folder.
     
     Args:
         case_dir (str): The directory path to process
     """
     for item in os.listdir(case_dir):
         item_path = os.path.join(case_dir, item)
-        if os.path.isdir(item_path) and item != "0" and item.isdigit():
+        if os.path.isdir(item_path) and item != "0":
             try:
-                shutil.rmtree(item_path)
-                print(f"Removed numeric folder: {item_path}")
-            except Exception as e:
-                print(f"Error removing folder {item_path}: {str(e)}")
+                # Try to convert to float to check if it's a numeric value
+                float(item)
+                # If conversion succeeds, it's a numeric folder
+                try:
+                    shutil.rmtree(item_path)
+                    print(f"Removed numeric folder: {item_path}")
+                except Exception as e:
+                    print(f"Error removing folder {item_path}: {str(e)}")
+            except ValueError:
+                # Not a numeric value, so we keep this folder
+                pass
 
 def run_command(script_path: str, out_file: str, err_file: str, working_dir: str, config : Config) -> None:
     print(f"Executing script {script_path} in {working_dir}")
