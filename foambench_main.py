@@ -73,18 +73,22 @@ def main():
     # Each tuple consists of (script_path, list_of_arguments).
     # Scripts can be Python or shell scripts.
     
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    print(f"script_dir: {script_dir}")
+
     SCRIPTS = []
     
-    # Preprocess the OpenFOAM tutorials
-    if not os.path.exists("database/raw/openfoam_tutorials_details.txt"):
+    # Preprocess the OpenFOAM tutorials    
+    if not os.path.exists(f"{script_dir}/database/raw/openfoam_tutorials_details.txt"):
         SCRIPTS.append(f"python database/script/tutorial_parser.py --output_dir=./database/raw --wm_project_dir={WM_PROJECT_DIR}")
-    if not os.path.exists("database/faiss/openfoam_command_help"):
+    if not os.path.exists(f"{script_dir}/database/faiss/openfoam_command_help"):
         SCRIPTS.append(f"python database/script/faiss_command_help.py --database_path=./database")
-    if not os.path.exists("database/faiss/openfoam_allrun_scripts"):
+    if not os.path.exists(f"{script_dir}/database/faiss/openfoam_allrun_scripts"):
         SCRIPTS.append(f"python database/script/faiss_allrun_scripts.py --database_path=./database")
-    if not os.path.exists("database/faiss/openfoam_tutorials_structure"):
+    if not os.path.exists(f"{script_dir}/database/faiss/openfoam_tutorials_structure"):
         SCRIPTS.append(f"python database/script/faiss_tutorials_structure.py --database_path=./database")
-    if not os.path.exists("database/faiss/openfoam_tutorials_details"):
+    if not os.path.exists(f"{script_dir}/database/faiss/openfoam_tutorials_details"):
         SCRIPTS.append(f"python database/script/faiss_tutorials_details.py --database_path=./database")
     
     print(f"python src/main.py --prompt_path='{args.prompt_path} --output_dir='{args.output}'")
