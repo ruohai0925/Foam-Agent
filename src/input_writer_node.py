@@ -79,7 +79,9 @@ def input_writer_node(state):
 
         code_user_prompt = (
             f"User requirement: {state.user_requirement}\n"
-            f"Refer to the following similar case file content to ensure the generated file aligns with the user requirement:\n{similar_file_text}\n"
+            f"Refer to the following similar case file content to ensure the generated file aligns with the user requirement:\n<similar_case_reference>{similar_file_text}</similar_case_reference>\n"
+            f"Similar case reference is always correct. If you find the user requirement is very consistent with the similar case reference, you should use the similar case reference as the template to generate the file."
+            f"Just modify the necessary parts to make the file complete and functional."
             "Please ensure that the generated file is complete, functional, and logically sound."
             "Additionally, apply your domain expertise to verify that all numerical values are consistent with the user's requirements, maintaining accuracy and coherence."
         )

@@ -4,7 +4,7 @@ from pathlib import Path
 
 @dataclass
 class Config:
-    max_loop: int = 10
+    max_loop: int = 50
     temperature: float = 0
     batchsize: int = 10
     searchdocs: int = 2
@@ -14,4 +14,4 @@ class Config:
     run_directory: str = Path(__file__).resolve().parent.parent / "runs"
     case_dir: str = ""
     model_provider: str = "bedrock" # [openai, bedrock]
-    max_time_limit = 3600 # Max time limit after which the openfoam run will be terminated
+    max_time_limit = 36000 # Max time limit after which the openfoam run will be terminated
