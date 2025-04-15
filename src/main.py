@@ -1,10 +1,10 @@
-# main.py
 from dataclasses import dataclass, field
 from typing import List, Optional
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 import argparse
 from pathlib import Path
+from utils import LLMService
 
 from config import Config
 from architect_node import architect_node
@@ -29,6 +29,7 @@ class GraphState:
 def main(user_requirement: str, config: Config):
     # Create the initial state.
     state = GraphState(user_requirement=user_requirement, config=config)
+    state.llm_service = LLMService(config)
     
     state.case_stats = json.load(open(f"{state.config.database_path}/raw/openfoam_case_stats.json", "r"))
     
@@ -37,6 +38,7 @@ def main(user_requirement: str, config: Config):
     
     max_loop = config.max_loop
     for i in range(max_loop):
+        print(f"Loop {i+1}: ")
         runner_response = runner_node(state)
         if runner_response["goto"] == "end":
             break
@@ -44,6 +46,9 @@ def main(user_requirement: str, config: Config):
         reviewer_response = reviewer_node(state)
         if reviewer_response["goto"] == "end":
             break
+    
+    print(f"<loop>{i}</loop>")
+    state.llm_service.print_statistics()
         
     print(state)
     
@@ -69,7 +74,7 @@ def main(user_requirement: str, config: Config):
     # graph = graph_builder.compile()
 
 
-    # print("Workflow finished.")
+    print("Workflow finished.")
 
 if __name__ == "__main__":
     # python main.py

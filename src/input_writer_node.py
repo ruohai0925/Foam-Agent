@@ -1,6 +1,6 @@
 # input_writer_node.py
 import os
-from utils import invoke_llm, save_file, parse_context, retrieve_faiss, FoamPydantic, FoamfilePydantic
+from utils import save_file, parse_context, retrieve_faiss, FoamPydantic, FoamfilePydantic
 import re
 from typing import List
 from pydantic import BaseModel, Field
@@ -88,7 +88,7 @@ def input_writer_node(state):
         if len(writed_files) > 0:
             code_user_prompt += f"The following are files content already generated: {str(writed_files)}\n\n\nYou should ensure that the new file is consistent with the previous files. Such as boundary conditions, mesh settings, etc."
 
-        generation_response = invoke_llm(config, code_user_prompt, code_system_prompt)
+        generation_response = state.llm_service.invoke(code_user_prompt, code_system_prompt)
         
         code_context = parse_context(generation_response.content)
         save_file(file_path, code_context)
@@ -120,7 +120,7 @@ def input_writer_node(state):
         "Generate only the required OpenFOAM command list—no extra text."
     )
     
-    command_response = invoke_llm(config, command_user_prompt, command_system_prompt, pydantic_obj=CommandsPydantic)
+    command_response = state.llm_service.invoke(command_user_prompt, command_system_prompt, pydantic_obj=CommandsPydantic)
 
     if len(command_response.commands) == 0:
         print("Failed to generate subtasks.")
@@ -153,7 +153,7 @@ def input_writer_node(state):
         "Generate the Allrun script strictly based on the above information. Do not include explanations, comments, or additional text. Put the code in ``` tags."
     )
     
-    allrun_response = invoke_llm(config, allrun_user_prompt, allrun_system_prompt)
+    allrun_response = state.llm_service.invoke(allrun_user_prompt, allrun_system_prompt)
     
     allrun_script = parse_allrun(allrun_response.content)
     save_file(allrun_file_path, allrun_script)

@@ -1,7 +1,7 @@
 # architect_node.py
 import os
 import re
-from utils import invoke_llm, save_file, retrieve_faiss, parse_directory_structure
+from utils import save_file, retrieve_faiss, parse_directory_structure
 from pydantic import BaseModel, Field
 from typing import List
 import shutil
@@ -40,7 +40,7 @@ def architect_node(state):
                            )
     parse_user_prompt = f"User requirement: {user_requirement}."
     
-    parse_response = invoke_llm(config, parse_user_prompt, parse_system_prompt, pydantic_obj=CaseSummaryPydantic)
+    parse_response = state.llm_service.invoke(parse_user_prompt, parse_system_prompt, pydantic_obj=CaseSummaryPydantic)
     
     state.case_name = parse_response.case_name.replace(" ", "_")
     state.case_domain = parse_response.case_domain
@@ -134,7 +134,7 @@ def architect_node(state):
         "Please generate the output as structured JSON."
     )
     
-    decompose_resposne = invoke_llm(config, decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanPydantic)
+    decompose_resposne = state.llm_service.invoke(decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanPydantic)
 
     if len(decompose_resposne.subtasks) == 0:
         print("Failed to generate subtasks.")

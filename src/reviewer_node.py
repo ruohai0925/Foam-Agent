@@ -1,6 +1,6 @@
 # reviewer_node.py
 import os
-from utils import invoke_llm, save_file, FoamPydantic
+from utils import save_file, FoamPydantic
 from pydantic import BaseModel, Field
 from typing import List
 
@@ -61,7 +61,7 @@ def reviewer_node(state):
             "Please review the error logs and provide guidance on how to resolve the reported errors. Make sure your suggestions adhere to user requirements and do not contradict it."
         ) 
     
-    review_response = invoke_llm(config, reviewer_user_prompt, REVIEWER_SYSTEM_PROMPT)
+    review_response = state.llm_service.invoke(reviewer_user_prompt, REVIEWER_SYSTEM_PROMPT)
     review_content = review_response.content
     
     # Initialize history_text if it doesn't exist
@@ -88,7 +88,7 @@ def reviewer_node(state):
         f"<user_requirement>{state.user_requirement}</user_requirement>\n\n"
         "Please update the relevant OpenFOAM files to resolve the reported errors, ensuring that all modifications strictly adhere to the specified formats. Ensure all modifications adhere to user requirement."
     )
-    rewrite_response = invoke_llm(config, rewrite_user_prompt, REWRITE_SYSTEM_PROMPT, pydantic_obj=FoamPydantic)
+    rewrite_response = state.llm_service.invoke(rewrite_user_prompt, REWRITE_SYSTEM_PROMPT, pydantic_obj=FoamPydantic)
     
     # Save the modified files.
     print(f"============================== Rewrite ==============================")
