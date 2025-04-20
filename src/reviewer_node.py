@@ -62,7 +62,7 @@ def reviewer_node(state):
         ) 
     
     review_response = state.llm_service.invoke(reviewer_user_prompt, REVIEWER_SYSTEM_PROMPT)
-    review_content = review_response.content
+    review_content = review_response
     
     # Initialize history_text if it doesn't exist
     if not hasattr(state, "history_text"):

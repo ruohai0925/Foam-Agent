@@ -11,7 +11,7 @@ from langchain_aws import ChatBedrock, ChatBedrockConverse
 from langchain_anthropic import ChatAnthropic
 from pathlib import Path
 import tracking_aws
-
+import requests
 from pydantic import BaseModel, Field
 from typing import List
 import time
@@ -19,6 +19,7 @@ import random
 from botocore.exceptions import ClientError
 import shutil
 from config import Config
+from langchain_ollama import ChatOllama
 
 # Global dictionary to store loaded FAISS databases
 FAISS_DB_CACHE = {}
@@ -38,6 +39,10 @@ class FoamfilePydantic(BaseModel):
 
 class FoamPydantic(BaseModel):
     list_foamfile: List[FoamfilePydantic] = Field(description="List of OpenFOAM configuration files")
+
+class ResponseWithThinkPydantic(BaseModel):
+    think: str = Field(description="Thought process of the LLM")
+    response: str = Field(description="Response of the LLM")
     
 class LLMService:
     def __init__(self, config: object):
@@ -72,6 +77,25 @@ class LLMService:
                 self.model_version, 
                 model_provider=self.model_provider, 
                 temperature=self.temperature
+            )
+        elif self.model_provider.lower() == "ollama":
+            try:
+                response = requests.get("http://localhost:11434/api/version", timeout=2)
+                # If request successful, service is running
+            except requests.exceptions.RequestException:
+                print("Ollama is not running, starting it...")
+                subprocess.Popen(["ollama", "serve"], 
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+                # Wait for service to start
+                time.sleep(5)  # Give it 3 seconds to initialize
+
+            self.llm = ChatOllama(
+                model=self.model_version, 
+                temperature=self.temperature,
+                num_predict=-1,
+                num_ctx=131072,
+                base_url="http://localhost:11434"
             )
         else:
             raise ValueError(f"{self.model_provider} is not a supported model_provider")
@@ -111,11 +135,19 @@ class LLMService:
                 if pydantic_obj:
                     structured_llm = self.llm.with_structured_output(pydantic_obj)
                     response = structured_llm.invoke(messages)
-                    response_content = str(response)
                 else:
-                    response = self.llm.invoke(messages)
-                    response_content = str(response)
+                    if self.model_version.startswith("deepseek"):
+                        structured_llm = self.llm.with_structured_output(ResponseWithThinkPydantic)
+                        response = structured_llm.invoke(messages)
+
+                        # Extract the resposne without the think
+                        response = response.response
+                    else:
+                        response = self.llm.invoke(messages)
+                        response = response.content
+
                 # Calculate completion tokens
+                response_content = str(response)
                 completion_tokens = self.llm.get_num_tokens(response_content)
                 total_tokens = prompt_tokens + completion_tokens
                 

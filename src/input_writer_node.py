@@ -90,7 +90,7 @@ def input_writer_node(state):
 
         generation_response = state.llm_service.invoke(code_user_prompt, code_system_prompt)
         
-        code_context = parse_context(generation_response.content)
+        code_context = parse_context(generation_response)
         save_file(file_path, code_context)
         
         writed_files.append(FoamfilePydantic(file_name=file_name, folder_name=folder_name, content=code_context))
@@ -155,7 +155,7 @@ def input_writer_node(state):
     
     allrun_response = state.llm_service.invoke(allrun_user_prompt, allrun_system_prompt)
     
-    allrun_script = parse_allrun(allrun_response.content)
+    allrun_script = parse_allrun(allrun_response)
     save_file(allrun_file_path, allrun_script)
     
     writed_files.append(FoamfilePydantic(file_name="Allrun", folder_name="./", content=allrun_script))
