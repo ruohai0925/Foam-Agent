@@ -1,8 +1,8 @@
-# OpenFOAM Agent  
+# Foam-Agent  
 
 ## Introduction  
 
-**OpenFOAM Agent** is an AI-driven automation system designed to enhance the efficiency of **OpenFOAM** workflows. By leveraging **retrieval-augmented generation (RAG), reinforcement learning (RL), and multi-agent collaboration**, OpenFOAM Agent optimizes the process of case setup, execution, and analysis.  
+**Foam-Agent** is an AI-driven automation system designed to enhance the efficiency of **OpenFOAM** workflows. By leveraging **retrieval-augmented generation (RAG), reinforcement learning (RL), and multi-agent collaboration**, OpenFOAM Agent optimizes the process of case setup, execution, and analysis.  
 
 This system **reduces manual intervention**, allowing engineers to **focus on simulation insights** rather than repetitive file management. Whether you're running large-scale simulations or optimizing workflows, OpenFOAM Agent provides a **scalable and intelligent** solution.  
 
@@ -39,6 +39,7 @@ This system **reduces manual intervention**, allowing engineers to **focus on si
 Clone the repository and install dependencies:  
 
 ```bash
-git clone https://github.com/LeoYML/OpenFOAM-Agent.git
-cd OpenFOAM-Agent
+git clone https://github.com/csml-rpi/Foam-Agent.git
+
+cd Foam-Agent
 conda env create -f environment.yml
