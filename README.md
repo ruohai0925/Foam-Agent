@@ -1,45 +1,49 @@
-# Foam-Agent  
+# Foam-Agent
 
-## Introduction  
+<p align="center">
+  <img src="overview.png" alt="Foam-Agent System Architecture" width="600">
+</p>
 
-**Foam-Agent** is an AI-driven automation system designed to enhance the efficiency of **OpenFOAM** workflows. By leveraging **retrieval-augmented generation (RAG), reinforcement learning (RL), and multi-agent collaboration**, OpenFOAM Agent optimizes the process of case setup, execution, and analysis.  
+## Introduction
+**Foam-Agent** is a multi-agent framework that automates complex OpenFOAM-based CFD simulation workflows from natural language inputs. By leveraging advanced AI techniques, Foam-Agent significantly lowers the expertise barrier for Computational Fluid Dynamics while maintaining modeling accuracy.
 
-This system **reduces manual intervention**, allowing engineers to **focus on simulation insights** rather than repetitive file management. Whether you're running large-scale simulations or optimizing workflows, OpenFOAM Agent provides a **scalable and intelligent** solution.  
+Our framework offers three key innovations:
+- **Hierarchical multi-index retrieval system** with specialized indices for different simulation aspects
+- **Dependency-aware file generation system** ensuring consistency across configuration files
+- **Iterative error correction mechanism** that diagnoses and resolves simulation failures without human intervention
 
-## Features  
+## Features
+### 🔍 **Enhanced Retrieval System**
+- **Hierarchical retrieval** covering case files, directory structures, and dependencies
+- **Specialized vector index architecture** for improved information retrieval
+- **Context-specific knowledge retrieval** at different simulation stages
 
-### 🔍 **Enhanced Retrieval System**  
-- **Unlimited file length support** for retrieving large datasets.  
-- **Hierarchical retrieval** covering case files, directory structures, and dependencies.  
-- **Keyword-based indexing** for efficient case retrieval.  
-- **Metadata-driven database control** for precise search and filtering.  
+### 🤖 **Multi-Agent Workflow Optimization**
+- **Architect Agent** interprets requirements and plans file structures
+- **Input Writer Agent** generates configuration files with consistency management
+- **Runner Agent** executes simulations and captures outputs
+- **Reviewer Agent** analyzes errors and proposes corrections
 
-### 🤖 **AI-Powered Workflow Optimization**  
-- **Dynamic execution flow using LangGraph**, enabling intelligent task management.  
-- **Structured responses with Pydantic formatting** for consistency.  
-- **Self-learning system** that adapts based on past case performance.  
+### 🛠️ **Intelligent Error Correction**
+- **Error pattern recognition** for common simulation failures
+- **Automatic diagnosis and resolution** of configuration issues
+- **Iterative refinement process** that progressively improves simulation configurations
 
-### 🏆 **Smart Search & Execution Strategies**  
-- **Neural-Guided Monte Carlo Tree Search (MCTS)** for optimizing case execution.  
-- **Supervised Fine-Tuning (SFT) and Reinforcement Learning (RL)** for continuous improvement.  
-- **Physics-aware RL models** to refine simulation accuracy.  
-
-### 🛠️ **Autonomous Decision-Making**  
-- **Determines when to save, run, and review cases** without manual input.  
-- **Automatically modifies and refines simulation files** based on results.  
-- **Multi-agent collaboration** for splitting and managing tasks efficiently.  
-
-### 🌍 **Seamless Integration & Extensibility**  
-- **File upload and case management support.**  
-- **Web-based interface for interactive controls.**  
-- **ChatGPT extensions for intelligent assistance.**  
-
-## Getting Started  
-
-Clone the repository and install dependencies:  
-
+## Getting Started
+Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/csml-rpi/Foam-Agent.git
-
 cd Foam-Agent
 conda env create -f environment.yml
+```
+
+## Citation
+If you use Foam-Agent in your research, please cite our paper:
+```bibtex
+@article{yue2025foam,
+  title={Foam-Agent: Towards Automated Intelligent CFD Workflows},
+  author={Yue, Ling and Somasekharan, Nithin and Cao, Yadi and Pan, Shaowu},
+  journal={arXiv preprint arXiv:2505.04997},
+  year={2025}
+}
+```
