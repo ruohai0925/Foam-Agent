@@ -4,6 +4,8 @@
   <img src="overview.png" alt="Foam-Agent System Architecture" width="600">
 </p>
 
+You can visit https://deepwiki.com/csml-rpi/Foam-Agent for a comprehensive introduction and to ask any questions interactively.
+
 ## Introduction
 **Foam-Agent** is a multi-agent framework that automates complex OpenFOAM-based CFD simulation workflows from natural language inputs. By leveraging advanced AI techniques, Foam-Agent significantly lowers the expertise barrier for Computational Fluid Dynamics while maintaining modeling accuracy.
 
@@ -36,6 +38,8 @@ git clone https://github.com/csml-rpi/Foam-Agent.git
 cd Foam-Agent
 conda env create -f environment.yml
 ```
+
+We will release our dataset as soon as the relevant license review is completed. This project will be continuously updated to integrate more advanced large language models for improved performance and to support additional functionalities. We encourage everyone to follow this GitHub repository and our team's progress. We firmly believe in the inevitable arrival of AGI and remain committed to advancing automation in the CFD domain. We welcome collaboration and communication from researchers and practitioners in the field.
 
 ## Citation
 If you use Foam-Agent in your research, please cite our paper:
