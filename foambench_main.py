@@ -24,6 +24,12 @@ def parse_args():
         required=True,
         help="User requirement file path for the benchmark"
     )
+    parser.add_argument(
+        '--paraview_path',
+        type=str,
+        required=True,
+        help="Path to ParaView installation"
+    )
     return parser.parse_args()
 
 def run_command(command_str):
@@ -57,7 +63,7 @@ def run_command(command_str):
 def main():
     args = parse_args()
     print(args)
-
+    sys.path.append(args.paraview_path)
     # Set environment variables
     WM_PROJECT_DIR = args.openfoam_path
     # Check if OPENAI_API_KEY is available in the environment
@@ -94,7 +100,7 @@ def main():
     print(f"python src/main.py --prompt_path='{args.prompt_path} --output_dir='{args.output}'")
     # Main workflow
     SCRIPTS.extend([
-        f"python src/main.py --prompt_path='{args.prompt_path}' --output_dir='{args.output}'"
+        f"python src/main.py --prompt_path='{args.prompt_path}' --output_dir='{args.output}' --paraview_path='{args.paraview_path}'"
     ])
 
     print("Starting workflow...")

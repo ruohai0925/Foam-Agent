@@ -4,7 +4,7 @@ from pathlib import Path
 
 @dataclass
 class Config:
-    max_loop: int = 50
+    max_loop: int = 10
     
     batchsize: int = 10
     searchdocs: int = 2
@@ -13,8 +13,8 @@ class Config:
     run_directory: str = Path(__file__).resolve().parent.parent / "runs"
     case_dir: str = ""
     max_time_limit = 36000 # Max time limit after which the openfoam run will be terminated
-    model_provider: str = "ollama" # [openai, bedrock, ollama]
+    model_provider: str = "bedrock" # [openai, bedrock, ollama]
     # model_version should be in ["arn:aws:bedrock:us-west-2:991404956194:application-inference-profile/56i8iq1vib3e", "gpt-4o", "deepseek-r1:32b-qwen-distill-fp16"]
-    model_version: str = "qwen2.5:32b-instruct"
-    temperature: float = 0.6
+    model_version: str = "arn:aws:bedrock:us-west-2:991404956194:application-inference-profile/56i8iq1vib3e"
+    temperature: float = 0.0
     

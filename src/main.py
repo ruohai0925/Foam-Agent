@@ -11,11 +11,13 @@ from architect_node import architect_node
 from input_writer_node import input_writer_node
 from runner_node import runner_node
 from reviewer_node import reviewer_node
+from post_processing_node_pyvista import visualization_node
 import json
 
 @dataclass
 class GraphState:
     user_requirement: str
+    paraview_path: str
     config: Config
     case_dir: str = ""
     tutorial: str = ""
@@ -26,9 +28,9 @@ class GraphState:
     error_content: Optional[str] = None
     loop_count: int = 0
 
-def main(user_requirement: str, config: Config):
+def main(user_requirement: str, paraview_path: str, config: Config):
     # Create the initial state.
-    state = GraphState(user_requirement=user_requirement, config=config)
+    state = GraphState(user_requirement=user_requirement, paraview_path=paraview_path, config=config)
     state.llm_service = LLMService(config)
     
     state.case_stats = json.load(open(f"{state.config.database_path}/raw/openfoam_case_stats.json", "r"))
@@ -46,6 +48,8 @@ def main(user_requirement: str, config: Config):
         reviewer_response = reviewer_node(state)
         if reviewer_response["goto"] == "end":
             break
+    
+    visualization_node(state, max_loop)
     
     print(f"<loop>{i}</loop>")
     state.llm_service.print_statistics()
@@ -93,6 +97,12 @@ if __name__ == "__main__":
         default="",
         help="Output directory for the workflow.",
     )
+    parser.add_argument(
+        "--paraview_path",
+        type=str,
+        default="",
+        help="Path to ParaView installation.",
+    )
     
     args = parser.parse_args()
     print(args)
@@ -104,5 +114,6 @@ if __name__ == "__main__":
     
     with open(args.prompt_path, 'r') as f:
         user_requirement = f.read()
+    paraview_path = args.paraview_path
     
-    main(user_requirement, config)
+    main(user_requirement, paraview_path, config)
