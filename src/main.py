@@ -11,7 +11,7 @@ from architect_node import architect_node
 from input_writer_node import input_writer_node
 from runner_node import runner_node
 from reviewer_node import reviewer_node
-from post_processing_node import visualization_node
+from post_processing_node_pyvista import visualization_node
 from preprocessor_node import preprocessor_node
 import json
 
@@ -53,7 +53,7 @@ def main(user_requirement: str, paraview_path: str, config: Config, mesh_file: s
         if reviewer_response["goto"] == "end":
             break
     
-    # visualization_node(state, max_loop)
+    visualization_node(state, max_loop)
     
     print(f"<loop>{i}</loop>")
     state.llm_service.print_statistics()
