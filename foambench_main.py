@@ -30,6 +30,12 @@ def parse_args():
         required=True,
         help="Path to ParaView installation"
     )
+    parser.add_argument(
+        '--mesh_file',
+        type=str,
+        required=True,
+        help="Path to the input .msh file"
+    )
     return parser.parse_args()
 
 def run_command(command_str):
@@ -97,10 +103,10 @@ def main():
     if not os.path.exists(f"{script_dir}/database/faiss/openfoam_tutorials_details"):
         SCRIPTS.append(f"python database/script/faiss_tutorials_details.py --database_path=./database")
     
-    print(f"python src/main.py --prompt_path='{args.prompt_path} --output_dir='{args.output}'")
+    print(f"python src/main.py --prompt_path='{args.prompt_path}' --output_dir='{args.output}' --paraview_path='{args.paraview_path}' --mesh_file='{args.mesh_file}'")
     # Main workflow
     SCRIPTS.extend([
-        f"python src/main.py --prompt_path='{args.prompt_path}' --output_dir='{args.output}' --paraview_path='{args.paraview_path}'"
+        f"python src/main.py --prompt_path='{args.prompt_path}' --output_dir='{args.output}' --paraview_path='{args.paraview_path}' --mesh_file='{args.mesh_file}'"
     ])
 
     print("Starting workflow...")
@@ -109,5 +115,5 @@ def main():
     print("Workflow completed successfully.")
 
 if __name__ == "__main__":
-    ## python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path "./user_requirement.txt"
+    ## python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path "./user_requirement.txt" --mesh_file "./mesh.msh"
     main()

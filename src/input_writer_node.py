@@ -141,6 +141,7 @@ def input_writer_node(state):
         "You are an expert in OpenFOAM. Generate an Allrun script based on the provided details."
         f"Available commands with descriptions: {commands_help}\n\n"
         f"Reference Allrun scripts from similar cases: {state.allrun_reference}\n\n"
+        "Identify if the mesh is provided as an external file from the user requirements. If the mesh is provided as an external file, you dont have to use any command to generate the mesh."
     )
     
     allrun_user_prompt = (

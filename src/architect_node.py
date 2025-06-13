@@ -61,13 +61,13 @@ def architect_node(state):
         else:
             state.case_dir = os.path.join(config.run_directory, state.case_name)
     
-    if os.path.exists(state.case_dir):
-        print(f"Warning: Case directory {state.case_dir} already exists. Overwriting.")
-        shutil.rmtree(state.case_dir)
-    os.makedirs(state.case_dir)
+    # if os.path.exists(state.case_dir):
+    #     print(f"Warning: Case directory {state.case_dir} already exists. Overwriting.")
+    #     shutil.rmtree(state.case_dir)
+    # os.makedirs(state.case_dir)
     
     
-    print(f"Created case directory: {state.case_dir}")
+    # print(f"Created case directory: {state.case_dir}")
 
     # Step 3: Retrieve a similar reference case from the FAISS databases.
     # Retrieve by case info
