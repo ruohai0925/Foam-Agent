@@ -84,6 +84,7 @@ def input_writer_node(state):
             f"Just modify the necessary parts to make the file complete and functional."
             "Please ensure that the generated file is complete, functional, and logically sound."
             "Additionally, apply your domain expertise to verify that all numerical values are consistent with the user's requirements, maintaining accuracy and coherence."
+            "When generating controlDict, do not include anything to preform post processing. Just include the necessary settings to run the simulation."
         )
         if len(writed_files) > 0:
             code_user_prompt += f"The following are files content already generated: {str(writed_files)}\n\n\nYou should ensure that the new file is consistent with the previous files. Such as boundary conditions, mesh settings, etc."
@@ -141,7 +142,8 @@ def input_writer_node(state):
         "You are an expert in OpenFOAM. Generate an Allrun script based on the provided details."
         f"Available commands with descriptions: {commands_help}\n\n"
         f"Reference Allrun scripts from similar cases: {state.allrun_reference}\n\n"
-        "Identify if the mesh is provided as an external file from the user requirements. If the mesh is provided as an external file, you dont have to use any command to generate the mesh."
+        "Identify if the mesh is provided as an external file from the user requirements. If the mesh is provided as an external file, dont include any command in Allrun to generate the mesh."
+        "Do not include any command in Allrunto convert .msh file to foam format."
     )
     
     allrun_user_prompt = (

@@ -10,7 +10,7 @@ BOUNDARY_SYSTEM_PROMPT = (
     "You are an expert in OpenFOAM mesh processing and simulations. "
     "Your role is to analyze and modify boundary conditions in OpenFOAM polyMesh boundary file. "
     "You understand both 2D and 3D simulations and know how to properly set boundary conditions. "
-    "For 2D simulations, you know which boundaries should be set to 'empty' type. "
+    "For 2D simulations, you know which boundaries should be set to 'empty' type and 'empty' physicalType. "
     "You are precise and only return the exact boundary file content without any additional text or explanations. "
     "IMPORTANT: Only change the specified boundary to 'empty' type and leave all other boundaries exactly as they are."
 )
@@ -129,8 +129,9 @@ def preprocessor_node(state, max_loop):
                     f"<boundary_file_content>{boundary_content}</boundary_file_content>\n"
                     "Please analyze the user requirements and boundary file content. "
                     "Identify which boundary is to be modified based on the boundaries mentioned in the user requirements."
-                    "If this is a 2D simulation, modify ONLY the appropriate boundary to 'empty' type. "
-                    "If this is a 3D simulation, return the same boundary content without modifications. "
+                    "If this is a 2D simulation, modify ONLY the appropriate boundary to 'empty' type and 'empty' physicalType. "
+                    "Based on the no slip boundaries mentioned in the user requirements, modify the appropriate boundary/boundaries to type 'wall' and physicalType 'wall'. "
+                    "If this is a 3D simulation, only modify the appropriate boundary/boundaries to type 'wall' and physicalType 'wall'."
                     "IMPORTANT: Do not change any other boundaries - leave them exactly as they are. "
                     "Return ONLY the complete boundary file content with any necessary modifications. No additional text."
                 )
