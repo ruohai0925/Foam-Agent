@@ -178,3 +178,13 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+lid_driven.msh
+
+# CFD/mesh and run directories to ignore
+manual_mesh_run/
+multi_element_airfoil.msh
+runs_mesh_upload_cavity/
+runs_mesh_upload_with_viz_cavity/
+runs_multi_airfoil/
+runs_tandem_wing/
+tandem_wing.msh
