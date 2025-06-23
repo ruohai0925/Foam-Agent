@@ -13,8 +13,8 @@ class Config:
     run_directory: str = Path(__file__).resolve().parent.parent / "runs"
     case_dir: str = ""
     max_time_limit = 36000 # Max time limit after which the openfoam run will be terminated
-    model_provider: str = "ollama" # [openai, bedrock, ollama]
-    # model_version should be in ["arn:aws:bedrock:us-west-2:991404956194:application-inference-profile/56i8iq1vib3e", "gpt-4o", "deepseek-r1:32b-qwen-distill-fp16"]
-    model_version: str = "qwen2.5:32b-instruct"
-    temperature: float = 0.6
+    model_provider: str = "openai" # [openai, ollama]
+    # model_version should be in ["gpt-4o", "deepseek-r1:32b-qwen-distill-fp16", "qwen2.5:32b-instruct"]
+    model_version: str = "gpt-4o"
+    temperature: float = 0.1
     
