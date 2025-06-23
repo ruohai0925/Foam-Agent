@@ -14,8 +14,8 @@ def runner_node(state):
     Runner node: Generate an Allrun script, execute it, and check for errors.
     On error, update state.error_command and state.error_content.
     """
-    config = state.config
-    case_dir = state.case_dir
+    config = state["config"]
+    case_dir = state["case_dir"]
     allrun_file_path = os.path.join(case_dir, "Allrun")
     
     print(f"============================== Runner ==============================")
@@ -32,13 +32,17 @@ def runner_node(state):
     run_command(allrun_file_path, out_file, err_file, case_dir, config)
     
     # Check for errors.
-    state.error_logs = check_foam_errors(case_dir)
+    error_logs = check_foam_errors(case_dir)
 
-    if len(state.error_logs) > 0:
+    if len(error_logs) > 0:
         print("Errors detected in the Allrun execution.")
-        print(state.error_logs)
-        return {"goto": "reviewer"}
+        print(error_logs)
     else:
         print("Allrun executed successfully without errors.")
-        return {"goto": "end"}
+    
+    # Return updated state
+    return {
+        **state,
+        "error_logs": error_logs
+    }
         

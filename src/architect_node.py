@@ -28,56 +28,56 @@ def architect_node(state):
     Updates state with:
       - case_dir, tutorial, case_name, subtasks.
     """
-    config = state.config
-    user_requirement = state.user_requirement
+    config = state["config"]
+    user_requirement = state["user_requirement"]
 
     # Step 1: Translate user requirement.
     parse_system_prompt = ("Please transform the following user requirement into a standard case description using a structured format."
                            "The key elements should include case name, case domain, case category, and case solver."
-                           f"Note: case domain must be one of {state.case_stats['case_domain']}."
-                           f"Note: case category must be one of {state.case_stats['case_category']}."
-                           f"Note: case solver must be one of {state.case_stats['case_solver']}."
+                           f"Note: case domain must be one of {state['case_stats']['case_domain']}."
+                           f"Note: case category must be one of {state['case_stats']['case_category']}."
+                           f"Note: case solver must be one of {state['case_stats']['case_solver']}."
                            )
     parse_user_prompt = f"User requirement: {user_requirement}."
     
-    parse_response = state.llm_service.invoke(parse_user_prompt, parse_system_prompt, pydantic_obj=CaseSummaryPydantic)
+    parse_response = state["llm_service"].invoke(parse_user_prompt, parse_system_prompt, pydantic_obj=CaseSummaryPydantic)
     
-    state.case_name = parse_response.case_name.replace(" ", "_")
-    state.case_domain = parse_response.case_domain
-    state.case_category = parse_response.case_category
-    state.case_solver = parse_response.case_solver
+    case_name = parse_response.case_name.replace(" ", "_")
+    case_domain = parse_response.case_domain
+    case_category = parse_response.case_category
+    case_solver = parse_response.case_solver
     
-    print(f"Parsed case name: {state.case_name}")
-    print(f"Parsed case domain: {state.case_domain}")
-    print(f"Parsed case category: {state.case_category}")
-    print(f"Parsed case solver: {state.case_solver}")
+    print(f"Parsed case name: {case_name}")
+    print(f"Parsed case domain: {case_domain}")
+    print(f"Parsed case category: {case_category}")
+    print(f"Parsed case solver: {case_solver}")
     
     # Step 2: Determine case directory.
     if config.case_dir != "":
-        state.case_dir = config.case_dir
+        case_dir = config.case_dir
     else:
         if config.run_times > 1:
-            state.case_dir = os.path.join(config.run_directory, f"{state.case_name}_{config.run_times}")
+            case_dir = os.path.join(config.run_directory, f"{case_name}_{config.run_times}")
         else:
-            state.case_dir = os.path.join(config.run_directory, state.case_name)
+            case_dir = os.path.join(config.run_directory, case_name)
     
-    if os.path.exists(state.case_dir):
-        print(f"Warning: Case directory {state.case_dir} already exists. Overwriting.")
-        shutil.rmtree(state.case_dir)
-    os.makedirs(state.case_dir)
+    if os.path.exists(case_dir):
+        print(f"Warning: Case directory {case_dir} already exists. Overwriting.")
+        shutil.rmtree(case_dir)
+    os.makedirs(case_dir)
     
     
-    print(f"Created case directory: {state.case_dir}")
+    print(f"Created case directory: {case_dir}")
 
     # Step 3: Retrieve a similar reference case from the FAISS databases.
     # Retrieve by case info
-    case_info = f"case name: {state.case_name}\ncase domain: {state.case_domain}\ncase category: {state.case_category}\ncase solver: {state.case_solver}"
+    case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
     
-    faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=state.config.searchdocs)
+    faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=config.searchdocs)
     faiss_structure = faiss_structure[0]['full_content']
     
     # Retrieve by case info + directory structure
-    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=state.config.searchdocs)
+    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=config.searchdocs)
     faiss_detailed = faiss_detailed[0]['full_content']
     
     dir_structure = re.search(r"<directory_structure>(.*?)</directory_structure>", faiss_detailed, re.DOTALL).group(1).strip()
@@ -88,20 +88,19 @@ def architect_node(state):
     print(dir_counts_str)
     
     # Retrieve a reference Allrun script from the FAISS "Allrun" database.
-    index_content = f"<index>\ncase name: {state.case_name}\ncase solver: {state.case_solver}</index>\n<directory_structure>{dir_structure}</directory_structure>"
-    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", index_content, topk=state.config.searchdocs)
+    index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}</index>\n<directory_structure>{dir_structure}</directory_structure>"
+    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", index_content, topk=config.searchdocs)
     allrun_reference = "Similar cases are ordered, with smaller numbers indicating greater similarity. For example, similar_case_1 is more similar than similar_case_2, and similar_case_2 is more similar than similar_case_3.\n"
     for idx, item in enumerate(faiss_allrun):
         allrun_reference += f"<similar_case_{idx + 1}>{item['full_content']}</similar_case_{idx + 1}>\n\n\n"
     
-    case_path = os.path.join(state.case_dir, "similar_case.txt")
+    case_path = os.path.join(case_dir, "similar_case.txt")
     
     # TODO update all information to faiss_detailed
-    state.tutorial_reference = faiss_detailed
-    state.case_path_reference = case_path
-    state.dir_structure_reference = dir_structure
-    state.case_info = case_info
-    state.allrun_reference = allrun_reference
+    tutorial_reference = faiss_detailed
+    case_path_reference = case_path
+    dir_structure_reference = dir_structure
+    allrun_reference = allrun_reference
     
     save_file(case_path, f"{faiss_detailed}\n\n\n{allrun_reference}")
         
@@ -134,7 +133,7 @@ def architect_node(state):
         "Please generate the output as structured JSON."
     )
     
-    decompose_resposne = state.llm_service.invoke(decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanPydantic)
+    decompose_resposne = state["llm_service"].invoke(decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanPydantic)
 
     if len(decompose_resposne.subtasks) == 0:
         print("Failed to generate subtasks.")
@@ -142,6 +141,20 @@ def architect_node(state):
 
     print(f"Generated {len(decompose_resposne.subtasks)} subtasks.")
 
-    state.subtasks = decompose_resposne.subtasks
+    subtasks = decompose_resposne.subtasks
 
-    return {"goto": "input_writer"}
+    # Return updated state
+    return {
+        **state,
+        "case_name": case_name,
+        "case_domain": case_domain,
+        "case_category": case_category,
+        "case_solver": case_solver,
+        "case_dir": case_dir,
+        "tutorial_reference": tutorial_reference,
+        "case_path_reference": case_path_reference,
+        "dir_structure_reference": dir_structure_reference,
+        "case_info": case_info,
+        "allrun_reference": allrun_reference,
+        "subtasks": [{"file_name": subtask.file_name, "folder_name": subtask.folder_name} for subtask in subtasks]
+    }

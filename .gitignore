@@ -6,6 +6,7 @@ database/faiss
 database/raw
 output/
 benchmark/
+src/config.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
