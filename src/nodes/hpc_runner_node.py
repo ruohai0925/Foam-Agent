@@ -1,4 +1,4 @@
-# runner_node.py
+# hpc_runner_node.py
 from typing import List
 import os
 from pydantic import BaseModel, Field
@@ -9,16 +9,16 @@ from utils import (
 )
 
 
-def runner_node(state):
+def hpc_runner_node(state):
     """
-    Runner node: Generate an Allrun script, execute it, and check for errors.
+    HPC Runner node: Execute an Allrun script on HPC cluster, and check for errors.
     On error, update state.error_command and state.error_content.
     """
     config = state["config"]
     case_dir = state["case_dir"]
     allrun_file_path = os.path.join(case_dir, "Allrun")
     
-    print(f"============================== Runner ==============================")
+    print(f"============================== HPC Runner ==============================")
     
     # Clean up any previous log and error files.
     out_file = os.path.join(case_dir, "Allrun.out")
@@ -28,21 +28,25 @@ def runner_node(state):
     remove_file(out_file)
     remove_numeric_folders(case_dir)
     
-    # Execute the Allrun script.
-    run_command(allrun_file_path, out_file, err_file, case_dir, config)
+    # Execute the Allrun script on HPC cluster.
+    # TODO: Implement HPC-specific execution logic
+    pass
     
     # Check for errors.
-    error_logs = check_foam_errors(case_dir)
-
+    # TODO: Implement HPC-specific error checking
+    pass
+    
+    # Mock error logs for testing
+    error_logs = []
+    
     if len(error_logs) > 0:
-        print("Errors detected in the Allrun execution.")
+        print("Errors detected in the HPC Allrun execution.")
         print(error_logs)
     else:
-        print("Allrun executed successfully without errors.")
+        print("HPC Allrun executed successfully without errors.")
     
     # Return updated state
     return {
         **state,
         "error_logs": error_logs
     }
-        

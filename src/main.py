@@ -7,39 +7,21 @@ from pathlib import Path
 from utils import LLMService
 
 from config import Config
-from architect_node import architect_node
-from input_writer_node import input_writer_node
-from runner_node import runner_node
-from reviewer_node import reviewer_node
+from nodes.architect_node import architect_node
+from nodes.meshing_node import meshing_node
+from nodes.input_writer_node import input_writer_node
+from nodes.local_runner_node import local_runner_node
+from nodes.reviewer_node import reviewer_node
+from nodes.visualization_node import visualization_node
+from nodes.hpc_runner_node import hpc_runner_node
+from router_func import (
+    GraphState, 
+    route_after_architect, 
+    route_after_input_writer, 
+    route_after_runner, 
+    route_after_reviewer
+)
 import json
-
-class GraphState(TypedDict):
-    user_requirement: str
-    config: Config
-    case_dir: str
-    tutorial: str
-    case_name: str
-    subtasks: List[dict]
-    current_subtask_index: int
-    error_command: Optional[str]
-    error_content: Optional[str]
-    loop_count: int
-    # Additional state fields that will be added during execution
-    llm_service: Optional[LLMService]
-    case_stats: Optional[dict]
-    tutorial_reference: Optional[str]
-    case_path_reference: Optional[str]
-    dir_structure_reference: Optional[str]
-    case_info: Optional[str]
-    allrun_reference: Optional[str]
-    dir_structure: Optional[dict]
-    commands: Optional[List[str]]
-    foamfiles: Optional[dict]
-    error_logs: Optional[List[str]]
-    history_text: Optional[List[str]]
-    case_domain: Optional[str]
-    case_category: Optional[str]
-    case_solver: Optional[str]
 
 def create_foam_agent_graph() -> StateGraph:
     """Create the OpenFOAM agent workflow graph."""
@@ -49,43 +31,22 @@ def create_foam_agent_graph() -> StateGraph:
     
     # Add nodes
     workflow.add_node("architect", architect_node)
+    workflow.add_node("meshing", meshing_node)
     workflow.add_node("input_writer", input_writer_node)
-    workflow.add_node("runner", runner_node)
+    workflow.add_node("local_runner", local_runner_node)
+    workflow.add_node("hpc_runner", hpc_runner_node)
     workflow.add_node("reviewer", reviewer_node)
-    
-    # Define the routing logic
-    def route_after_architect(state: GraphState):
-        return "input_writer"
-    
-    def route_after_input_writer(state: GraphState):
-        return "runner"
-    
-    def route_after_runner(state: GraphState):
-        if state.get("error_logs") and len(state["error_logs"]) > 0:
-            return "reviewer"
-        else:
-            return END
-    
-    def route_after_reviewer(state: GraphState):
-        loop_count = state.get("loop_count", 0)
-        max_loop = state["config"].max_loop
-        if loop_count >= max_loop:
-            print(f"Maximum loop count ({max_loop}) reached. Ending workflow.")
-            return END
-        if state.get("error_logs") and len(state["error_logs"]) > 0:
-            state["loop_count"] = loop_count + 1
-            print(f"Loop {loop_count + 1}: Continuing to fix errors.")
-            return "input_writer"
-        else:
-            print("No more errors to fix. Ending workflow.")
-            return END
+    workflow.add_node("visualization", visualization_node)
     
     # Add edges
     workflow.add_edge(START, "architect")
     workflow.add_conditional_edges("architect", route_after_architect)
+    workflow.add_edge("meshing", "input_writer")
     workflow.add_conditional_edges("input_writer", route_after_input_writer)
-    workflow.add_conditional_edges("runner", route_after_runner)
+    workflow.add_conditional_edges("hpc_runner", route_after_runner)
+    workflow.add_conditional_edges("local_runner", route_after_runner)
     workflow.add_conditional_edges("reviewer", route_after_reviewer)
+    workflow.add_edge("visualization", END)
     
     return workflow
 
@@ -120,13 +81,18 @@ def initialize_state(user_requirement: str, config: Config) -> GraphState:
         history_text=None,
         case_domain=None,
         case_category=None,
-        case_solver=None
+        case_solver=None,
+        # Initialize mesh-related fields
+        mesh_info=None,
+        mesh_commands=None,
+        mesh_file_destination=None,
+        custom_mesh_used=None
     )
     
     return state
 
 def main(user_requirement: str, config: Config):
-    """Main function to run the OpenFOAM workflow using LangGraph."""
+    """Main function to run the OpenFOAM workflow."""
     
     # Create and compile the graph
     workflow = create_foam_agent_graph()
@@ -135,7 +101,7 @@ def main(user_requirement: str, config: Config):
     # Initialize the state
     initial_state = initialize_state(user_requirement, config)
     
-    print("Starting OpenFOAM workflow with LangGraph...")
+    print("Starting Foam-Agent...")
     
     # Invoke the graph
     try:
@@ -146,7 +112,7 @@ def main(user_requirement: str, config: Config):
         if result.get("llm_service"):
             result["llm_service"].print_statistics()
         
-        print(f"Final state: {result}")
+        # print(f"Final state: {result}")
         
     except Exception as e:
         print(f"Workflow failed with error: {e}")

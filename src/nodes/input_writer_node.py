@@ -104,9 +104,16 @@ def input_writer_node(state):
     # Retrieve available commands from the FAISS "Commands" database.
     commands = retrieve_commands(f"{config.database_path}/raw/openfoam_commands.txt")
     
+    # Include mesh commands if custom mesh is used
+    mesh_commands_info = ""
+    if state.get("custom_mesh_used") and state.get("mesh_commands"):
+        mesh_commands_info = f"\nCustom mesh commands to include: {state['mesh_commands']}"
+        print(f"Including custom mesh commands: {state['mesh_commands']}")
+    
     command_system_prompt = (
         "You are an expert in OpenFOAM. The user will provide a list of available commands. "
         "Your task is to generate only the necessary OpenFOAM commands required to create an Allrun script for the given user case, based on the provided directory structure. "
+        "If custom mesh commands are provided, include them in the appropriate order (typically after blockMesh or instead of blockMesh if custom mesh is used). "
         "Return only the list of commands—no explanations, comments, or additional text."
     )
     
@@ -115,6 +122,7 @@ def input_writer_node(state):
         f"Case directory structure: {dir_structure}\n"
         f"User case information: {state['case_info']}\n"
         f"Reference Allrun scripts from similar cases: {state['allrun_reference']}\n"
+        f"{mesh_commands_info}\n"
         "Generate only the required OpenFOAM command list—no extra text."
     )
     
@@ -137,12 +145,14 @@ def input_writer_node(state):
         "You are an expert in OpenFOAM. Generate an Allrun script based on the provided details."
         f"Available commands with descriptions: {commands_help}\n\n"
         f"Reference Allrun scripts from similar cases: {state['allrun_reference']}\n\n"
+        "If custom mesh commands are provided, make sure to include them in the appropriate order in the Allrun script."
     )
     
     allrun_user_prompt = (
         f"User requirement: {state['user_requirement']}\n"
         f"Case directory structure: {dir_structure}\n"
         f"User case infomation: {state['case_info']}\n"
+        f"{mesh_commands_info}\n"
         "All run scripts for these similar cases are for reference only and may not be correct, as you might be a different case solver or have a different directory structure. " 
         "You need to rely on your OpenFOAM and physics knowledge to discern this, and pay more attention to user requirements, " 
         "as your ultimate goal is to fulfill the user's requirements and generate an allrun script that meets those requirements."
