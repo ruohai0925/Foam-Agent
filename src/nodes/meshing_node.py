@@ -89,6 +89,7 @@ GMSH_PYTHON_ERROR_CORRECTION_SYSTEM_PROMPT = (
     "- Mesh generation problems "
     "- API usage errors "
     "- Missing boundary definitions that cause OpenFOAM conversion failures "
+    "- Mesh quality issues detected by checkMesh (skewness, aspect ratio, etc.) "
     "You can identify the root cause of errors and provide corrected Python code. "
     "CRITICAL REQUIREMENTS: "
     "- Ensure 3D mesh generation for OpenFOAM compatibility "
@@ -97,12 +98,14 @@ GMSH_PYTHON_ERROR_CORRECTION_SYSTEM_PROMPT = (
     "- Handle various geometry types and boundary conditions "
     "- When missing boundaries are mentioned, ensure they are properly defined "
     "- Do not use gmsh.model.getCenterOfMass(dim, tag) function to analyze surface positions "
+    "- Address mesh quality issues by adjusting mesh sizing and refinement strategies "
     "CRITICAL CORRECTIONS: "
     "- Use proper coordinate system variables (z_min, z_max) for boundary detection "
     "- Use bounding box coordinates directly for boundary detection, NOT center points "
     "- Ensure all boundary types are detected: (example: inlet, outlet, top, bottom, cylinder, frontAndBack) "
     "- Check boundary detection logic for coordinate system consistency "
     "- Verify that extrusion creates proper 3D geometry with all expected surfaces "
+    "- For mesh quality issues: adjust mesh sizes, add refinement zones, improve geometry definition "
     "CRITICAL ORDER: Create geometry then Extrude then Synchronize then Generate mesh then create physical groups "
     "CRITICAL: Use bounding box coordinates consistently for ALL boundary types - do not mix center points and bounding box coordinates in the same boundary detection logic "
     "MOST CRITICAL FIX: If boundaries are missing after gmshToFoam, move ALL physical group creation to AFTER gmsh.model.mesh.generate(3) "
@@ -112,6 +115,11 @@ GMSH_PYTHON_ERROR_CORRECTION_SYSTEM_PROMPT = (
     "- Use tolerance tol = 1e-6 for all floating point comparisons "
     "- Ensure thin surfaces at z_min and z_max are properly classified as boundary surfaces "
     "- Check that ALL user-specified boundaries are detected and assigned to physical groups "
+    "MESH QUALITY FIXES: "
+    "- For high skewness: refine mesh in problematic areas, adjust element sizes "
+    "- For poor aspect ratio: use smaller mesh sizes, add refinement zones "
+    "- For non-orthogonality: improve geometry definition, use structured meshing where possible "
+    "- For negative volume elements: check geometry validity, ensure proper surface orientation "
     "IMPORTANT: Use your expertise to diagnose and fix issues while maintaining code adaptability for different problems."
 )
 
@@ -424,6 +432,108 @@ def handle_custom_mesh(state, case_dir):
             "mesh_commands": []
         }
 
+def run_checkmesh_and_correct(state, case_dir, python_file, max_loop):
+    """
+    Run checkMesh command and handle mesh quality issues.
+    
+    Args:
+        state: State object containing LLM service and configuration
+        case_dir: Case directory path
+        python_file: Path to the Python mesh generation file
+        max_loop: Maximum number of retry attempts
+    
+    Returns:
+        tuple: (success: bool, should_continue: bool)
+    """
+    print("Running checkMesh to verify mesh quality...")
+    
+    try:
+        # Run checkMesh command
+        result = subprocess.run(
+            ["checkMesh"],
+            cwd=case_dir,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        checkmesh_output = result.stdout
+        print("checkMesh completed successfully")
+        print(f"checkMesh output:\n{checkmesh_output}")
+        
+        # Check if checkMesh reported any failures
+        if "Failed" in checkmesh_output and "mesh checks" in checkmesh_output:
+            # Extract the number of failed checks
+            failed_match = re.search(r"Failed (\d+) mesh checks", checkmesh_output)
+            if failed_match:
+                failed_count = int(failed_match.group(1))
+                print(f"checkMesh detected {failed_count} mesh quality issues")
+                
+                if state['gmsh_python_current_loop'] < max_loop:
+                    print("Attempting to correct mesh generation based on checkMesh results...")
+                    
+                    # Read current Python code
+                    with open(python_file, 'r') as f:
+                        current_code = f.read()
+                    
+                    # Create error message for correction
+                    checkmesh_error = (
+                        f"checkMesh output:\n{checkmesh_output}\n"
+                        "Please analyze the checkMesh output and correct the mesh generation code. "
+                        "Common issues include: "
+                        "- Poor mesh quality (skewness, aspect ratio, etc.) "
+                        "- Geometry issues affecting mesh generation "
+                        "- Boundary layer problems "
+                        "- Boundary naming overlap or mismatch "
+                        "Provide corrected Python code that addresses the specific mesh quality issues identified by checkMesh."
+                    )
+                    
+                    # Use the existing correction function
+                    corrected_code = _correct_gmsh_python_code(
+                        state,
+                        current_code,
+                        checkmesh_error
+                    )
+                    
+                    if corrected_code:
+                        state['corrected_python_code'] = corrected_code
+                        print("Generated corrected Python code for next attempt (checkMesh issues)")
+                        return False, True  # Not successful, but should continue
+                    else:
+                        print("Failed to generate corrected code for checkMesh issues")
+                        return False, False  # Not successful, should not continue
+                else:
+                    print(f"Failed to resolve checkMesh issues after {max_loop} attempts")
+                    return False, False  # Not successful, should not continue
+            else:
+                print("checkMesh output contains 'Failed' but couldn't parse failure count")
+                return False, False
+        else:
+            print("checkMesh passed - no mesh quality issues detected")
+            return True, False  # Successful, no need to continue
+            
+    except subprocess.CalledProcessError as e:
+        error_message = f"Error running checkMesh: {str(e)}"
+        if e.stdout:
+            error_message += f"\nSTDOUT:\n{e.stdout}"
+        if e.stderr:
+            error_message += f"\nSTDERR:\n{e.stderr}"
+        print(error_message)
+        state["error_logs"].append(error_message)
+        
+        if state['gmsh_python_current_loop'] < max_loop:
+            print("Retrying mesh generation due to checkMesh error...")
+            return False, True  # Not successful, but should continue
+        else:
+            print(f"Failed to run checkMesh after {max_loop} attempts")
+            return False, False  # Not successful, should not continue
+    
+    except Exception as e:
+        print(f"Unexpected error in checkMesh: {str(e)}")
+        state["error_logs"].append(f"Unexpected error in checkMesh: {str(e)}")
+        return False, False
+
 def handle_gmsh_mesh(state, case_dir):
     """Handle GMSH mesh generation using gmsh python logic."""
     print("============================== GMSH Mesh Generation ==============================")
@@ -666,6 +776,21 @@ def handle_gmsh_mesh(state, case_dir):
                             del state['expected_boundaries']
                         state['missing_boundaries'] = []
                         
+                        # Run checkMesh to verify mesh quality BEFORE boundary file update
+                        checkmesh_success, should_continue = run_checkmesh_and_correct(state, case_dir, python_file, max_loop)
+                        
+                        if not checkmesh_success:
+                            if should_continue:
+                                continue  # Continue to next iteration with corrected code
+                            else:
+                                print(f"Failed to resolve checkMesh issues after {max_loop} attempts")
+                                return {
+                                    **state,
+                                    "mesh_info": None,
+                                    "mesh_commands": [],
+                                    "mesh_file_destination": None
+                                }
+                        
                         # Handle boundary conditions based on user requirements
                         with open(boundary_file, 'r') as f:
                             boundary_content = f.read()
@@ -693,11 +818,10 @@ def handle_gmsh_mesh(state, case_dir):
                 with open(foam_file, 'w') as f:
                     pass
                 
-                print("OpenFOAM conversion and boundary setup completed successfully")
+                print("OpenFOAM conversion, boundary setup, and mesh quality check completed successfully")
                 
                 # Generate mesh commands for the InputWriter node
-                mesh_commands = [
-                    "checkMesh",   # Check mesh quality  # Renumber mesh for better performance
+                mesh_commands = [   # Check mesh quality  # Renumber mesh for better performance
                 ]
                 
                 # Update state with mesh information
