@@ -195,7 +195,7 @@ def _correct_gmsh_python_code(state, current_code, error_output):
         else:
             # Fallback to previous logic for other errors
             missing_boundary_info = ""
-            if hasattr(state, 'missing_boundaries') and state['missing_boundaries']:
+            if 'missing_boundaries' in state and state['missing_boundaries']:
                 missing_boundary_info = (
                     f"\n<missing_boundaries>Previous attempts were missing these boundaries: {state['missing_boundaries']}. "
                     "Ensure these boundaries are properly defined in the GMSH physical groups.</missing_boundaries>"
@@ -280,61 +280,43 @@ def check_boundary_file_for_missing_boundaries(boundary_file_path, expected_boun
         return False, expected_boundaries, []
 
 def handle_custom_mesh(state, case_dir):
-    """Handle custom mesh file processing using preprocessor logic."""
     print("============================== Custom Mesh Processing ==============================")
-    
-    # Get custom mesh path from state
     custom_mesh_path = state.get("custom_mesh_path")
+    error_logs = []
     if not custom_mesh_path:
-        state["error_logs"] = []
-        state["error_logs"].append("No custom mesh path provided in state")
+        error_logs.append("No custom mesh path provided in state")
         print("Error: No custom mesh path provided")
         return {
-            **state,
             "mesh_info": None,
-            "mesh_commands": []
+            "mesh_commands": [],
+            "error_logs": error_logs
         }
-    
-    # Check if the custom mesh file exists
     if not os.path.exists(custom_mesh_path):
-        state["error_logs"] = []
-        state["error_logs"].append(f"Custom mesh file does not exist: {custom_mesh_path}")
+        error_logs.append(f"Custom mesh file does not exist: {custom_mesh_path}")
         print(f"Error: Custom mesh file not found at {custom_mesh_path}")
         return {
-            **state,
             "mesh_info": None,
-            "mesh_commands": []
+            "mesh_commands": [],
+            "error_logs": error_logs
         }
-    
-    # Copy the custom mesh file to the case directory
     mesh_in_case_dir = os.path.join(case_dir, "geometry.msh")
     try:
         shutil.copy2(custom_mesh_path, mesh_in_case_dir)
         print(f"Copied custom mesh from {custom_mesh_path} to {mesh_in_case_dir}")
     except Exception as e:
-        state["error_logs"] = []
-        state["error_logs"].append(f"Failed to copy custom mesh file: {str(e)}")
+        error_logs.append(f"Failed to copy custom mesh file: {str(e)}")
         print(f"Error: Failed to copy custom mesh file: {str(e)}")
         return {
-            **state,
             "mesh_info": None,
-            "mesh_commands": []
+            "mesh_commands": [],
+            "error_logs": error_logs
         }
-    
-    state["error_logs"] = []
-    
     print(f"Using mesh file: {mesh_in_case_dir}")
-    
     try:
-        # Create constant directory if it doesn't exist
         constant_dir = os.path.join(case_dir, "constant")
         os.makedirs(constant_dir, exist_ok=True)
-        
-        # Create system directory if it doesn't exist
         system_dir = os.path.join(case_dir, "system")
         os.makedirs(system_dir, exist_ok=True)
-        
-        # Create basic controlDict file
         controldict_prompt = (
             f"<user_requirements>{state['user_requirement']}</user_requirements>\n"
             "Please create a basic controlDict file for mesh conversion. "
@@ -342,15 +324,11 @@ def handle_custom_mesh(state, case_dir):
             "Use the application name as mentioned in the user requirements. "
             "IMPORTANT: Return ONLY the complete controlDict file content without any additional text."
         )
-        
         controldict_content = state["llm_service"].invoke(controldict_prompt, CONTROLDICT_SYSTEM_PROMPT).strip()
-        
         if controldict_content:
             controldict_file = os.path.join(system_dir, "controlDict")
             save_file(controldict_file, controldict_content)
             print("Created basic controlDict file for mesh conversion")
-        
-        # Run gmshToFoam command on the mesh file in case directory
         result = subprocess.run(
             ["gmshToFoam", "geometry.msh"],
             cwd=case_dir,
@@ -360,23 +338,18 @@ def handle_custom_mesh(state, case_dir):
             text=True
         )
         print(f"gmshToFoam command output: {result.stdout}")
-        
-        # Check if the mesh was converted successfully
         polyMesh_dir = os.path.join(constant_dir, "polyMesh")
         if not os.path.exists(polyMesh_dir):
-            state["error_logs"].append("Mesh conversion failed: polyMesh directory not created")
+            error_logs.append("Mesh conversion failed: polyMesh directory not created")
             return {
-                **state,
                 "mesh_info": None,
-                "mesh_commands": []
+                "mesh_commands": [],
+                "error_logs": error_logs
             }
-        
-        # Handle boundary conditions based on user requirements
         boundary_file = os.path.join(polyMesh_dir, "boundary")
         if os.path.exists(boundary_file):
             with open(boundary_file, 'r') as f:
                 boundary_content = f.read()
-            
             boundary_prompt = (
                 f"<user_requirements>{state['user_requirement']}</user_requirements>\n"
                 f"<boundary_file_content>{boundary_content}</boundary_file_content>\n"
@@ -388,51 +361,41 @@ def handle_custom_mesh(state, case_dir):
                 "IMPORTANT: Do not change any other boundaries - leave them exactly as they are. "
                 "Return ONLY the complete boundary file content with any necessary modifications. No additional text."
             )
-            
             updated_boundary_content = state["llm_service"].invoke(boundary_prompt, BOUNDARY_SYSTEM_PROMPT).strip()
-            
             if updated_boundary_content:
                 save_file(boundary_file, updated_boundary_content)
                 print("Boundary file updated based on simulation requirements")
-        
-        # Create .foam file
         foam_file = os.path.join(case_dir, f"{os.path.basename(case_dir)}.foam")
         with open(foam_file, 'w') as f:
             pass
-        
-        # Generate mesh commands for the InputWriter node
         mesh_commands = [
-            "checkMesh",   # Check mesh quality
-             # Renumber mesh for better performance
+            "checkMesh",
         ]
-        
         return {
-            **state,
             "mesh_info": {
-                "mesh_file_path": mesh_in_case_dir,  # Path in case directory
+                "mesh_file_path": mesh_in_case_dir,
                 "mesh_file_type": "gmsh",
                 "mesh_description": "Custom mesh processed by preprocessor",
                 "requires_blockmesh_removal": True
             },
             "mesh_commands": mesh_commands,
-            "custom_mesh_used": True
+            "custom_mesh_used": True,
+            "error_logs": error_logs
         }
-        
     except subprocess.CalledProcessError as e:
         error_message = f"Error in mesh conversion: {str(e)}"
         if e.stdout:
             error_message += f"\nSTDOUT:\n{e.stdout}"
         if e.stderr:
             error_message += f"\nSTDERR:\n{e.stderr}"
-        state["error_logs"].append(error_message)
-        
+        error_logs.append(error_message)
         return {
-            **state,
             "mesh_info": None,
-            "mesh_commands": []
+            "mesh_commands": [],
+            "error_logs": error_logs
         }
 
-def run_checkmesh_and_correct(state, case_dir, python_file, max_loop):
+def run_checkmesh_and_correct(state, case_dir, python_file, max_loop, current_loop, corrected_code, error_logs):
     """
     Run checkMesh command and handle mesh quality issues.
     
@@ -470,7 +433,7 @@ def run_checkmesh_and_correct(state, case_dir, python_file, max_loop):
                 failed_count = int(failed_match.group(1))
                 print(f"checkMesh detected {failed_count} mesh quality issues")
                 
-                if state['gmsh_python_current_loop'] < max_loop:
+                if current_loop < max_loop:
                     print("Attempting to correct mesh generation based on checkMesh results...")
                     
                     # Read current Python code
@@ -522,7 +485,7 @@ def run_checkmesh_and_correct(state, case_dir, python_file, max_loop):
         print(error_message)
         state["error_logs"].append(error_message)
         
-        if state['gmsh_python_current_loop'] < max_loop:
+        if current_loop < max_loop:
             print("Retrying mesh generation due to checkMesh error...")
             return False, True  # Not successful, but should continue
         else:
@@ -540,7 +503,7 @@ def handle_gmsh_mesh(state, case_dir):
     
     # Ensure case_dir exists
     case_dir = os.path.abspath(case_dir)
-    state["error_logs"] = []
+    error_logs = []
     if os.path.exists(case_dir):
         print(f"Warning: Case directory {case_dir} already exists. Overwriting.")
         shutil.rmtree(case_dir)
@@ -556,31 +519,32 @@ def handle_gmsh_mesh(state, case_dir):
     print(f"Expected boundaries from user requirements: {expected_boundaries}")
     
     # Initialize loop counter if not present
-    if not hasattr(state, 'gmsh_python_current_loop'):
-        state['gmsh_python_current_loop'] = 0
+    gmsh_python_current_loop = 0
     
     # Initialize missing boundaries tracking
-    if not hasattr(state, 'missing_boundaries'):
-        state['missing_boundaries'] = []
+    missing_boundaries = []
+    
+    # Initialize corrected code flag
+    corrected_python_code = None
     
     max_loop = state['config'].max_loop
-    while state['gmsh_python_current_loop'] < max_loop:
-        state['gmsh_python_current_loop'] += 1
-        print(f"GMSH Python attempt {state['gmsh_python_current_loop']} of {max_loop}")
+    while gmsh_python_current_loop < max_loop:
+        gmsh_python_current_loop += 1
+        print(f"GMSH Python attempt {gmsh_python_current_loop} of {max_loop}")
         
         # Determine if we should generate new code or use corrected code
         should_generate_new_code = True
-        if 'corrected_python_code' in state and state['corrected_python_code']:
+        if corrected_python_code:
             should_generate_new_code = False
-            python_code_to_use = state['corrected_python_code']
+            python_code_to_use = corrected_python_code
             print("Using corrected Python code from previous attempt")
         
         try:
             if should_generate_new_code:
                 # Generate Python code based on user requirements
                 missing_boundary_info = ""
-                if state['missing_boundaries']:
-                    missing_boundary_info = f"\n<missing_boundaries>Previous attempts were missing these boundaries: {state['missing_boundaries']} in boundary file after performing gmshToFoam. Ensure these boundaries are properly defined in the GMSH physical groups.</missing_boundaries>"
+                if missing_boundaries:
+                    missing_boundary_info = f"\n<missing_boundaries>Previous attempts were missing these boundaries: {missing_boundaries} in boundary file after performing gmshToFoam. Ensure these boundaries are properly defined in the GMSH physical groups.</missing_boundaries>"
                 
                 python_prompt = (
                     f"<user_requirements>{state['user_requirement']}</user_requirements>{missing_boundary_info}\n"
@@ -594,12 +558,12 @@ def handle_gmsh_mesh(state, case_dir):
                 
                 if not python_response.python_code:
                     print("Failed to generate GMSH Python code")
-                    if state['gmsh_python_current_loop'] >= max_loop:
+                    if gmsh_python_current_loop >= max_loop:
                         return {
-                            **state,
                             "mesh_info": None,
                             "mesh_commands": [],
-                            "mesh_file_destination": None
+                            "mesh_file_destination": None,
+                            "error_logs": error_logs
                         }
                     continue
                 
@@ -616,8 +580,7 @@ def handle_gmsh_mesh(state, case_dir):
             print(f"Created GMSH Python file: {python_file}")
             
             # Clear the corrected code flag since we're using it
-            if 'corrected_python_code' in state:
-                state['corrected_python_code'] = None
+            corrected_python_code = None
             
             # Run the Python code to generate the mesh
             print("Running GMSH Python code to generate mesh...")
@@ -658,7 +621,7 @@ def handle_gmsh_mesh(state, case_dir):
                 if stderr_output:
                     print(f"GMSH Python error output: {stderr_output}")
                     # Try to correct the Python code based on the error
-                    if state['gmsh_python_current_loop'] < max_loop:
+                    if gmsh_python_current_loop < max_loop:
                         print("Attempting to correct Python code based on error...")
                         corrected_code = _correct_gmsh_python_code(
                             state, 
@@ -666,15 +629,15 @@ def handle_gmsh_mesh(state, case_dir):
                             stderr_output
                         )
                         if corrected_code:
-                            state['corrected_python_code'] = corrected_code
+                            corrected_python_code = corrected_code
                             print("Generated corrected Python code for next attempt")
                             continue
-                if state['gmsh_python_current_loop'] >= max_loop:
+                if gmsh_python_current_loop >= max_loop:
                     return {
-                        **state,
                         "mesh_info": None,
                         "mesh_commands": [],
-                        "mesh_file_destination": None
+                        "mesh_file_destination": None,
+                        "error_logs": error_logs
                     }
                 continue
             
@@ -741,7 +704,7 @@ def handle_gmsh_mesh(state, case_dir):
                         # Read current generate_mesh.py code
                         with open(python_file, 'r') as f:
                             current_code = f.read()
-                        if state['gmsh_python_current_loop'] < max_loop:
+                        if gmsh_python_current_loop < max_loop:
                             print("Retrying mesh generation due to boundary mismatch...")
                             boundary_error = (
                                 f"Boundary mismatch after gmshToFoam. "
@@ -749,35 +712,37 @@ def handle_gmsh_mesh(state, case_dir):
                                 f"Expected boundaries: {expected_boundaries}. "
                                 "Please correct the mesh code so that the boundaries in the OpenFOAM boundary file match the expected boundaries exactly."
                             )
-                            state["error_logs"].append(boundary_error)
+                            error_logs.append(boundary_error)
                             corrected_code = _correct_gmsh_python_code(
                                 state,
                                 current_code,
                                 boundary_error
                             )
                             if corrected_code:
-                                state['corrected_python_code'] = corrected_code
+                                corrected_python_code = corrected_code
                                 print("Generated corrected Python code for next attempt (boundary mismatch)")
                                 continue
                         else:
                             print(f"Failed to generate correct boundaries after {max_loop} attempts")
                             return {
-                                **state,
                                 "mesh_info": None,
                                 "mesh_commands": [],
-                                "mesh_file_destination": None
+                                "mesh_file_destination": None,
+                                "error_logs": error_logs
                             }
                     else:
                         print("All boundaries match expected in OpenFOAM boundary file")
                         # Clear any previous boundary issues
-                        if hasattr(state, 'found_boundaries'):
+                        if 'found_boundaries' in state:
                             del state['found_boundaries']
-                        if hasattr(state, 'expected_boundaries'):
+                        if 'expected_boundaries' in state:
                             del state['expected_boundaries']
-                        state['missing_boundaries'] = []
+                        missing_boundaries = []
                         
                         # Run checkMesh to verify mesh quality BEFORE boundary file update
-                        checkmesh_success, should_continue = run_checkmesh_and_correct(state, case_dir, python_file, max_loop)
+                        checkmesh_success, should_continue = run_checkmesh_and_correct(
+                            state, case_dir, python_file, max_loop, gmsh_python_current_loop, corrected_python_code, error_logs
+                        )
                         
                         if not checkmesh_success:
                             if should_continue:
@@ -785,10 +750,10 @@ def handle_gmsh_mesh(state, case_dir):
                             else:
                                 print(f"Failed to resolve checkMesh issues after {max_loop} attempts")
                                 return {
-                                    **state,
                                     "mesh_info": None,
                                     "mesh_commands": [],
-                                    "mesh_file_destination": None
+                                    "mesh_file_destination": None,
+                                    "error_logs": error_logs
                                 }
                         
                         # Handle boundary conditions based on user requirements
@@ -826,7 +791,6 @@ def handle_gmsh_mesh(state, case_dir):
                 
                 # Update state with mesh information
                 return {
-                    **state,
                     "mesh_info": {
                         "mesh_file_path": msh_file,
                         "mesh_file_type": "gmsh",
@@ -835,7 +799,8 @@ def handle_gmsh_mesh(state, case_dir):
                     },
                     "mesh_commands": mesh_commands,
                     "mesh_file_destination": msh_file,
-                    "custom_mesh_used": True
+                    "custom_mesh_used": True,
+                    "error_logs": error_logs
                 }
                 
             except subprocess.CalledProcessError as e:
@@ -845,32 +810,32 @@ def handle_gmsh_mesh(state, case_dir):
                 if e.stderr:
                     error_message += f"\nSTDERR:\n{e.stderr}"
                 print(error_message)
-                state["error_logs"].append(error_message)
+                error_logs.append(error_message)
                 
                 # Retry mesh generation
-                if state['gmsh_python_current_loop'] < max_loop:
+                if gmsh_python_current_loop < max_loop:
                     print("Retrying mesh generation due to OpenFOAM conversion error...")
                     continue
                 else:
                     print(f"Failed to convert mesh to OpenFOAM format after {max_loop} attempts")
                     return {
-                        **state,
                         "mesh_info": None,
                         "mesh_commands": [],
-                        "mesh_file_destination": None
+                        "mesh_file_destination": None,
+                        "error_logs": error_logs
                     }
             
         except subprocess.CalledProcessError as e:
-            error_message = f"Error in GMSH Python mesh generation (attempt {state['gmsh_python_current_loop']}): {str(e)}"
+            error_message = f"Error in GMSH Python mesh generation (attempt {gmsh_python_current_loop}): {str(e)}"
             if e.stdout:
                 error_message += f"\nSTDOUT:\n{e.stdout}"
             if e.stderr:
                 error_message += f"\nSTDERR:\n{e.stderr}"
             print(error_message)
-            state["error_logs"].append(error_message)
+            error_logs.append(error_message)
             
             # Try to correct the Python code based on the error
-            if state['gmsh_python_current_loop'] < max_loop:
+            if gmsh_python_current_loop < max_loop:
                 print("Attempting to correct Python code based on error...")
                 try:
                     # Read the current Python file
@@ -883,37 +848,49 @@ def handle_gmsh_mesh(state, case_dir):
                         e.stderr
                     )
                     if corrected_code:
-                        state['corrected_python_code'] = corrected_code
+                        corrected_python_code = corrected_code
                         print("Generated corrected Python code for next attempt")
                         continue
                 except Exception as correction_error:
                     print(f"Error during Python code correction: {correction_error}")
             
-            if state['gmsh_python_current_loop'] >= max_loop:
+            if gmsh_python_current_loop >= max_loop:
                 print(f"Failed to generate mesh after {max_loop} attempts")
                 return {
-                    **state,
                     "mesh_info": None,
                     "mesh_commands": [],
-                    "mesh_file_destination": None
+                    "mesh_file_destination": None,
+                    "error_logs": error_logs
                 }
             
         except Exception as e:
             print(f"Error in GMSH Python node: {str(e)}")
-            if state['gmsh_python_current_loop'] >= max_loop:
+            if gmsh_python_current_loop >= max_loop:
                 return {
-                    **state,
                     "mesh_info": None,
                     "mesh_commands": [],
-                    "mesh_file_destination": None
+                    "mesh_file_destination": None,
+                    "error_logs": error_logs
                 }
             continue
     
     return {
-        **state,
         "mesh_info": None,
         "mesh_commands": [],
-        "mesh_file_destination": None
+        "mesh_file_destination": None,
+        "error_logs": error_logs
+    }
+
+def handle_standard_mesh(state, case_dir):
+    """Handle standard OpenFOAM mesh generation."""
+    print("============================== Standard Mesh Generation ==============================")
+    print("Using standard OpenFOAM mesh generation (blockMesh, snappyHexMesh, etc.)")
+    return {
+        "mesh_info": None,
+        "mesh_commands": [],
+        "mesh_file_destination": None,
+        "custom_mesh_used": False,
+        "error_logs": []
     }
 
 def meshing_node(state):
@@ -947,17 +924,3 @@ def meshing_node(state):
     else:
         print("Router determined: Standard mesh generation.")
         return handle_standard_mesh(state, case_dir)
-
-
-def handle_standard_mesh(state, case_dir):
-    """Handle standard OpenFOAM mesh generation."""
-    print("============================== Standard Mesh Generation ==============================")
-    print("Using standard OpenFOAM mesh generation (blockMesh, snappyHexMesh, etc.)")
-    
-    return {
-        **state,
-        "mesh_info": None,
-        "mesh_commands": [],
-        "mesh_file_destination": None,
-        "custom_mesh_used": False
-    }

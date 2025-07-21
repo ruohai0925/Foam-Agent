@@ -64,9 +64,12 @@ def reviewer_node(state):
     
     print(review_content)
 
+
+
     # Return updated state with review analysis
     return {
-        **state,
         "history_text": history_text,
-        "review_analysis": review_content
+        "review_analysis": review_content,
+        "loop_count": state.get("loop_count", 0) + 1,
+        "input_writer_mode": "rewrite",
     }

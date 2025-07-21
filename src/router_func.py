@@ -2,6 +2,7 @@ from typing import TypedDict, List, Optional
 from config import Config
 from utils import LLMService, GraphState
 from langgraph.graph import StateGraph, START, END
+from langgraph.types import Command
 
 
 def llm_requires_custom_mesh(state: GraphState) -> int:
@@ -146,16 +147,10 @@ def route_after_reviewer(state: GraphState):
     max_loop = state["config"].max_loop
     if loop_count >= max_loop:
         print(f"Maximum loop count ({max_loop}) reached. Ending workflow.")
-
         if llm_requires_visualization(state):
             return "visualization"
         else:
             return END
-    
-    state["loop_count"] = loop_count + 1
     print(f"Loop {loop_count}: Continuing to fix errors.")
-    
-    # Set flag to indicate rewrite mode for input_writer
-    state["input_writer_mode"] = "rewrite"
-    
+
     return "input_writer"
