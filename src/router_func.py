@@ -1,41 +1,7 @@
 from typing import TypedDict, List, Optional
 from config import Config
-from utils import LLMService
+from utils import LLMService, GraphState
 from langgraph.graph import StateGraph, START, END
-
-class GraphState(TypedDict):
-    user_requirement: str
-    config: Config
-    case_dir: str
-    tutorial: str
-    case_name: str
-    subtasks: List[dict]
-    current_subtask_index: int
-    error_command: Optional[str]
-    error_content: Optional[str]
-    loop_count: int
-    # Additional state fields that will be added during execution
-    llm_service: Optional[LLMService]
-    case_stats: Optional[dict]
-    tutorial_reference: Optional[str]
-    case_path_reference: Optional[str]
-    dir_structure_reference: Optional[str]
-    case_info: Optional[str]
-    allrun_reference: Optional[str]
-    dir_structure: Optional[dict]
-    commands: Optional[List[str]]
-    foamfiles: Optional[dict]
-    error_logs: Optional[List[str]]
-    history_text: Optional[List[str]]
-    case_domain: Optional[str]
-    case_category: Optional[str]
-    case_solver: Optional[str]
-    # Mesh-related state fields
-    mesh_info: Optional[dict]
-    mesh_commands: Optional[List[str]]
-    custom_mesh_used: Optional[bool]
-    mesh_type: Optional[str]
-    custom_mesh_path: Optional[str]
 
 
 def llm_requires_custom_mesh(state: GraphState) -> int:
@@ -58,14 +24,13 @@ def llm_requires_custom_mesh(state: GraphState) -> int:
         "If the user explicitly mentions or implies they want to use a custom mesh file, return 'custom_mesh'. "
         "If they want to use standard OpenFOAM mesh generation (blockMesh, snappyHexMesh with STL, etc.), return 'standard_mesh'. "
         "Look for keywords like gmsh and determine if they want to create mesh using gmsh. If they want to create mesh using gmsh, return 'gmsh_mesh'. "
-        "Be conservative - if unsure, assume standard mesh unless clearly specified otherwise."
+        "Be conservative - if unsure, assume 'standard_mesh' unless clearly specified otherwise."
+        "Only return 'custom_mesh' or 'standard_mesh' or 'gmsh_mesh'. Don't return anything else."
     )
     
     user_prompt = (
         f"User requirement: {user_requirement}\n\n"
-        "Determine if the user wants to use a custom mesh file. "
-        "Return exactly 'custom_mesh' if they want to use a custom mesh file, "
-        "'standard_mesh' if they want standard OpenFOAM mesh generation or 'gmsh_mesh' if they want to create mesh using gmsh."
+        "Determine if the user wants to use 'custom_mesh' or 'standard_mesh' or 'gmsh_mesh'. "
     )
     
     response = state["llm_service"].invoke(user_prompt, system_prompt)
@@ -97,13 +62,12 @@ def llm_requires_hpc(state: GraphState) -> bool:
         "If the user explicitly mentions or implies they want to run on HPC/cluster, return 'hpc_run'. "
         "If they want to run locally or don't specify, return 'local_run'. "
         "Be conservative - if unsure, assume local run unless clearly specified otherwise."
+        "Only return 'hpc_run' or 'local_run'. Don't return anything else."
     )
     
     user_prompt = (
         f"User requirement: {user_requirement}\n\n"
-        "Determine if the user wants to run the simulation on HPC/cluster. "
-        "Return exactly 'hpc_run' if they want to use HPC/cluster, "
-        "or 'local_run' if they want to run locally."
+        "return 'hpc_run' or 'local_run'"
     )
     
     response = state["llm_service"].invoke(user_prompt, system_prompt)
@@ -125,27 +89,26 @@ def llm_requires_visualization(state: GraphState) -> bool:
     system_prompt = (
         "You are an expert in OpenFOAM workflow analysis. "
         "Analyze the user requirement to determine if they want visualization of results. "
-        "Look for keywords like: plot, visualize, graph, chart, contour, streamlines, "
-        "paraview, post-processing, results analysis, or any mention of viewing/displaying results. "
-        "If the user explicitly mentions or implies they want visualization, return 'visualization'. "
+        "Look for keywords like: plot, visualize, graph, chart, contour, streamlines, paraview, post-processing."
+        "Only if the user explicitly mentions they want visualization, return 'yes_visualization'. "
         "If they don't mention visualization or only want to run the simulation, return 'no_visualization'. "
         "Be conservative - if unsure, assume visualization is wanted unless clearly specified otherwise."
+        "Only return 'yes_visualization' or 'no_visualization'. Don't return anything else."
     )
     
     user_prompt = (
         f"User requirement: {user_requirement}\n\n"
-        "Determine if the user wants visualization of simulation results. "
-        "Return exactly 'visualization' if they want to visualize results, "
-        "or 'no_visualization' if they don't need visualization."
+        "return 'yes_visualization' or 'no_visualization'"
     )
     
     response = state["llm_service"].invoke(user_prompt, system_prompt)
-    return "visualization" in response.lower()
+    return "yes_visualization" in response.lower()
 
 
 def route_after_architect(state: GraphState):
     """
     Route after architect node based on whether user wants custom mesh.
+    For current version, if user wants custom mesh, user should be able to provide a path to the mesh file.
     """
     mesh_type = state.get("mesh_type", "standard_mesh")
     if mesh_type == "custom_mesh":
@@ -189,7 +152,10 @@ def route_after_reviewer(state: GraphState):
         else:
             return END
     
-    # state["loop_count"] = loop_count + 1
+    state["loop_count"] = loop_count + 1
     print(f"Loop {loop_count}: Continuing to fix errors.")
     
-    return route_after_input_writer(state)
+    # Set flag to indicate rewrite mode for input_writer
+    state["input_writer_mode"] = "rewrite"
+    
+    return "input_writer"

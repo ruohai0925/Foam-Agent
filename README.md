@@ -32,10 +32,12 @@ Our framework offers three key innovations:
 - **Iterative refinement process** that progressively improves simulation configurations
 
 ## Getting Started
+Please use the stable version of Foam-Agent: https://github.com/csml-rpi/Foam-Agent/releases/tag/v1.0.0
 Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/csml-rpi/Foam-Agent.git
 cd Foam-Agent
+git checkout v1.0.0
 conda env create -f environment.yml
 ```
 
