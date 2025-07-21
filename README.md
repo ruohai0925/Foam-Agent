@@ -47,19 +47,20 @@ conda activate openfoamAgent
 
 Foam-Agent requires OpenFOAM v10. Please follow the official installation guide for your operating system:
 
-- Official installation: [https://openfoam.org/download/10/](https://openfoam.org/download/10/)
-
-After installation, make sure to source the OpenFOAM environment before running any workflow:
-
-```bash
-source /path/to/OpenFOAM-10/etc/bashrc
-```
+- Official installation: [https://openfoam.org/version/10/](https://openfoam.org/version/10/)
 
 Verify your installation with:
 
 ```bash
-foamInstallationTest
+echo $WM_PROJECT_DIR
 ```
+and the result should be
+```
+/opt/openfoam10
+```
+or something similar.
+
+`WM_PROJECT_DIR` is an environment variable that comes with your OpenFOAM installation, indicating the location of OpenFOAM on your computer.
 
 ### 3. Database preprocessing (first-time setup)
 
@@ -68,7 +69,7 @@ Before running any workflow, you must preprocess the OpenFOAM tutorial and comma
 #### Recommended: Automatic preprocessing
 
 ```bash
-python foambench_main.py --openfoam_path /path/to/OpenFOAM-10 --output ./output --prompt_path ./user_requirement.txt
+python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path ./user_requirement.txt
 ```
 
 This script will automatically run all necessary preprocessing scripts in `database/script/` and then launch the main workflow.
@@ -78,7 +79,7 @@ This script will automatically run all necessary preprocessing scripts in `datab
 If you prefer to run preprocessing scripts manually, execute the following:
 
 ```bash
-python database/script/tutorial_parser.py --output_dir=./database/raw --wm_project_dir=/path/to/OpenFOAM-10
+python database/script/tutorial_parser.py --output_dir=./database/raw --wm_project_dir=$WM_PROJECT_DIR
 python database/script/faiss_command_help.py --database_path=./database
 python database/script/faiss_allrun_scripts.py --database_path=./database
 python database/script/faiss_tutorials_structure.py --database_path=./database
@@ -90,7 +91,7 @@ python database/script/faiss_tutorials_details.py --database_path=./database
 #### Option 1: Automated benchmark (recommended)
 
 ```bash
-python foambench_main.py --openfoam_path /path/to/OpenFOAM-10 --output ./output --prompt_path ./user_requirement.txt
+python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path ./user_requirement.txt
 ```
 
 #### Option 2: Directly run the main agent
