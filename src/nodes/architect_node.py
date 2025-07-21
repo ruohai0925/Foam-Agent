@@ -96,7 +96,6 @@ def architect_node(state):
     
     case_path = os.path.join(case_dir, "similar_case.txt")
     
-    # TODO update all information to faiss_detailed
     tutorial_reference = faiss_detailed
     case_path_reference = case_path
     dir_structure_reference = dir_structure
@@ -143,24 +142,8 @@ def architect_node(state):
 
     subtasks = decompose_resposne.subtasks
 
-    # Determine mesh type based on user requirements
-    from router_func import llm_requires_custom_mesh
-    mesh_type = llm_requires_custom_mesh(state)
-    if mesh_type == 1:
-        mesh_type_value = "custom_mesh"
-        print("Architect determined: Custom mesh requested.")
-    elif mesh_type == 2:
-        mesh_type_value = "gmsh_mesh"
-        print("Architect determined: GMSH mesh requested.")
-    else:
-        mesh_type_value = "standard_mesh"
-        print("Architect determined: Standard mesh generation.")
-    
-    print(f"Architect set mesh_type to: {mesh_type_value}")
-
     # Return updated state
     return {
-        **state,
         "case_name": case_name,
         "case_domain": case_domain,
         "case_category": case_category,
@@ -172,5 +155,4 @@ def architect_node(state):
         "case_info": case_info,
         "allrun_reference": allrun_reference,
         "subtasks": [{"file_name": subtask.file_name, "folder_name": subtask.folder_name} for subtask in subtasks],
-        "mesh_type": mesh_type_value
     }

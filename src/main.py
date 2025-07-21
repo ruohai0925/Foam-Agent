@@ -50,11 +50,8 @@ def create_foam_agent_graph() -> StateGraph:
     return workflow
 
 def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Optional[str] = None) -> GraphState:
-    """Initialize the graph state with required data."""
-    # Load case statistics
     case_stats = json.load(open(f"{config.database_path}/raw/openfoam_case_stats.json", "r"))
-    
-    # Create initial state
+    mesh_type = "custom_mesh" if custom_mesh_path else "standard_mesh"
     state = GraphState(
         user_requirement=user_requirement,
         config=config,
@@ -81,24 +78,18 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
         case_domain=None,
         case_category=None,
         case_solver=None,
-        # Initialize mesh-related fields
         mesh_info=None,
         mesh_commands=None,
         custom_mesh_used=None,
-        mesh_type=None,
+        mesh_type=mesh_type,
         custom_mesh_path=custom_mesh_path,
-        # Initialize review and rewrite related fields
         review_analysis=None,
         input_writer_mode="initial"
     )
-
     if custom_mesh_path:
-        state["mesh_type"] = "custom_mesh"
         print(f"Custom mesh path: {custom_mesh_path}")
     else:
-        state["mesh_type"] = "standard_mesh"
         print("No custom mesh path provided.")
-    
     return state
 
 def main(user_requirement: str, config: Config, custom_mesh_path: Optional[str] = None):

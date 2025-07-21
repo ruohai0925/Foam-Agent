@@ -81,7 +81,6 @@ def _rewrite_mode(state):
         print("No review analysis available for rewrite mode.")
         return state
     
-    # Return the revised foamfile content.
     rewrite_user_prompt = (
         f"<foamfiles>{str(state['foamfiles'])}</foamfiles>\n"
         f"<error_logs>{state['error_logs']}</error_logs>\n"
@@ -90,31 +89,30 @@ def _rewrite_mode(state):
         "Please update the relevant OpenFOAM files to resolve the reported errors, ensuring that all modifications strictly adhere to the specified formats. Ensure all modifications adhere to user requirement."
     )
     rewrite_response = state["llm_service"].invoke(rewrite_user_prompt, REWRITE_SYSTEM_PROMPT, pydantic_obj=FoamPydantic)
-    
-    # Save the modified files.
+
     print(f"============================== Rewrite ==============================")
+    # Prepare updated dir_structure and foamfiles without mutating state
+    dir_structure = dict(state["dir_structure"]) if state.get("dir_structure") else {}
+    foamfiles_list = list(state["foamfiles"].list_foamfile) if state.get("foamfiles") and hasattr(state["foamfiles"], "list_foamfile") else []
+
     for foamfile in rewrite_response.list_foamfile:
         print(f"Modified the file: {foamfile.file_name} in folder: {foamfile.folder_name}")
         file_path = os.path.join(state["case_dir"], foamfile.folder_name, foamfile.file_name)
         save_file(file_path, foamfile.content)
         
-        # Update state
-        if foamfile.folder_name not in state["dir_structure"]:
-            state["dir_structure"][foamfile.folder_name] = []
-        if foamfile.file_name not in state["dir_structure"][foamfile.folder_name]:
-            state["dir_structure"][foamfile.folder_name].append(foamfile.file_name)
+        if foamfile.folder_name not in dir_structure:
+            dir_structure[foamfile.folder_name] = []
+        if foamfile.file_name not in dir_structure[foamfile.folder_name]:
+            dir_structure[foamfile.folder_name].append(foamfile.file_name)
         
-        for f in state["foamfiles"].list_foamfile:
-            if f.folder_name == foamfile.folder_name and f.file_name == foamfile.file_name:
-                state["foamfiles"].list_foamfile.remove(f)
-                break
-            
-        state["foamfiles"].list_foamfile.append(foamfile)
-    
-    # Return updated state
+        foamfiles_list = [f for f in foamfiles_list if not (f.folder_name == foamfile.folder_name and f.file_name == foamfile.file_name)]
+        foamfiles_list.append(foamfile)
+
+    foamfiles = FoamPydantic(list_foamfile=foamfiles_list)
     return {
-        **state,
-        "error_logs": []  # Clear errors after fixing
+        "dir_structure": dir_structure,
+        "foamfiles": foamfiles,
+        "error_logs": []
     }
 
 def _initial_write_mode(state):
@@ -193,18 +191,22 @@ def _initial_write_mode(state):
     command_system_prompt = (
         "You are an expert in OpenFOAM. The user will provide a list of available commands. "
         "Your task is to generate only the necessary OpenFOAM commands required to create an Allrun script for the given user case, based on the provided directory structure. "
-        "If custom mesh commands are provided, include them in the appropriate order (typically after blockMesh or instead of blockMesh if custom mesh is used). "
         "Return only the list of commands—no explanations, comments, or additional text."
     )
+
+    if state.get("mesh_type") == "custom_mesh":
+        command_system_prompt += "If custom mesh commands are provided, include them in the appropriate order (typically after blockMesh or instead of blockMesh if custom mesh is used). "
     
     command_user_prompt = (
         f"Available OpenFOAM commands for the Allrun script: {commands}\n"
         f"Case directory structure: {dir_structure}\n"
         f"User case information: {state['case_info']}\n"
         f"Reference Allrun scripts from similar cases: {state['allrun_reference']}\n"
-        f"{mesh_commands_info}\n"
         "Generate only the required OpenFOAM command list—no extra text."
     )
+
+    if state.get("mesh_type") == "custom_mesh":
+        command_user_prompt += f"{mesh_commands_info}\n"
     
     command_response = state["llm_service"].invoke(command_user_prompt, command_system_prompt, pydantic_obj=CommandsPydantic)
 
@@ -226,10 +228,12 @@ def _initial_write_mode(state):
         f"Available commands with descriptions: {commands_help}\n\n"
         f"Reference Allrun scripts from similar cases: {state['allrun_reference']}\n\n"
         "If custom mesh commands are provided, make sure to include them in the appropriate order in the Allrun script. "
-        "CRITICAL: Do not include any other mesh commands other than the custom mesh commands."
         "CRITICAL: Do not include any post processing commands in the Allrun script."
-        "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
     )
+
+    if state.get("mesh_mode") == "custom":
+        allrun_system_prompt += "CRITICAL: Do not include any other mesh commands other than the custom mesh commands.\n"
+        allrun_system_prompt += "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
     
     allrun_user_prompt = (
         f"User requirement: {state['user_requirement']}\n"
@@ -240,10 +244,14 @@ def _initial_write_mode(state):
         "You need to rely on your OpenFOAM and physics knowledge to discern this, and pay more attention to user requirements, " 
         "as your ultimate goal is to fulfill the user's requirements and generate an allrun script that meets those requirements."
         "CRITICAL: Do not include any post processing commands in the Allrun script."
-        "CRITICAL: Do not include any other mesh commands other than the custom mesh commands."
-        "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
         "Generate the Allrun script strictly based on the above information. Do not include explanations, comments, or additional text. Put the code in ``` tags."
     )
+
+    if state.get("mesh_mode") == "custom":
+        allrun_user_prompt += "CRITICAL: Do not include any other mesh commands other than the custom mesh commands.\n"
+        allrun_user_prompt += "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
+
+
     
     allrun_response = state["llm_service"].invoke(allrun_user_prompt, allrun_system_prompt)
     
@@ -255,7 +263,6 @@ def _initial_write_mode(state):
     
     # Return updated state
     return {
-        **state,
         "dir_structure": dir_structure,
         "commands": command_response.commands,
         "foamfiles": foamfiles
