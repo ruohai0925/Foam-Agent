@@ -5,6 +5,29 @@ import re
 from typing import List
 from pydantic import BaseModel, Field
 
+# System prompts for different modes
+INITIAL_WRITE_SYSTEM_PROMPT = (
+    "You are an expert in OpenFOAM simulation and numerical modeling."
+    f"Your task is to generate a complete and functional file named: <file_name>{{file_name}}</file_name> within the <folder_name>{{folder_name}}</folder_name> directory. "
+    "Ensure all required values are present and match with the files content already generated."
+    "Before finalizing the output, ensure:\n"
+    "- All necessary fields exist (e.g., if `nu` is defined in `constant/transportProperties`, it must be used correctly in `0/U`).\n"
+    "- Cross-check field names between different files to avoid mismatches.\n"
+    "- Ensure units and dimensions are correct** for all physical variables.\n"
+    f"- Ensure case solver settings are consistent with the user's requirements. Available solvers are: {{case_solver}}.\n"
+    "Provide only the code—no explanations, comments, or additional text."
+)
+
+REWRITE_SYSTEM_PROMPT = (
+    "You are an expert in OpenFOAM simulation and numerical modeling. "
+    "Your task is to modify and rewrite the necessary OpenFOAM files to fix the reported error. "
+    "Please do not propose solutions that require modifying any parameters declared in the user requirement, try other approaches instead."
+    "The user will provide the error content, error command, reviewer's suggestions, and all relevant foam files. "
+    "Only return files that require rewriting, modification, or addition; do not include files that remain unchanged. "
+    "Return the complete, corrected file contents in the following JSON format: "
+    "list of foamfile: [{file_name: 'file_name', folder_name: 'folder_name', content: 'content'}]. "
+    "Ensure your response includes only the modified file content with no extra text, as it will be parsed using Pydantic."
+)
 
 def compute_priority(subtask):
     if subtask["folder_name"] == "system":
@@ -31,15 +54,77 @@ def retrieve_commands(command_path) -> str:
 class CommandsPydantic(BaseModel):
     commands: List[str] = Field(description="List of commands")
 
-    
-    
 def input_writer_node(state):
     """
     InputWriter node: Generate the complete OpenFOAM foamfile.
+    
+    Args:
+        state: The current state containing all necessary information
     """
+
+    mode = state["input_writer_mode"]
+    
+    if mode == "rewrite":
+        return _rewrite_mode(state)
+    else:
+        return _initial_write_mode(state)
+
+def _rewrite_mode(state):
+    """
+    Rewrite mode: Fix errors based on reviewer analysis
+    """
+    print(f"============================== Rewrite Mode ==============================")
+
+    config = state["config"]
+    
+    if not state.get("review_analysis"):
+        print("No review analysis available for rewrite mode.")
+        return state
+    
+    # Return the revised foamfile content.
+    rewrite_user_prompt = (
+        f"<foamfiles>{str(state['foamfiles'])}</foamfiles>\n"
+        f"<error_logs>{state['error_logs']}</error_logs>\n"
+        f"<reviewer_analysis>{state['review_analysis']}</reviewer_analysis>\n\n"
+        f"<user_requirement>{state['user_requirement']}</user_requirement>\n\n"
+        "Please update the relevant OpenFOAM files to resolve the reported errors, ensuring that all modifications strictly adhere to the specified formats. Ensure all modifications adhere to user requirement."
+    )
+    rewrite_response = state["llm_service"].invoke(rewrite_user_prompt, REWRITE_SYSTEM_PROMPT, pydantic_obj=FoamPydantic)
+    
+    # Save the modified files.
+    print(f"============================== Rewrite ==============================")
+    for foamfile in rewrite_response.list_foamfile:
+        print(f"Modified the file: {foamfile.file_name} in folder: {foamfile.folder_name}")
+        file_path = os.path.join(state["case_dir"], foamfile.folder_name, foamfile.file_name)
+        save_file(file_path, foamfile.content)
+        
+        # Update state
+        if foamfile.folder_name not in state["dir_structure"]:
+            state["dir_structure"][foamfile.folder_name] = []
+        if foamfile.file_name not in state["dir_structure"][foamfile.folder_name]:
+            state["dir_structure"][foamfile.folder_name].append(foamfile.file_name)
+        
+        for f in state["foamfiles"].list_foamfile:
+            if f.folder_name == foamfile.folder_name and f.file_name == foamfile.file_name:
+                state["foamfiles"].list_foamfile.remove(f)
+                break
+            
+        state["foamfiles"].list_foamfile.append(foamfile)
+    
+    # Return updated state
+    return {
+        **state,
+        "error_logs": []  # Clear errors after fixing
+    }
+
+def _initial_write_mode(state):
+    """
+    Initial write mode: Generate files from scratch
+    """
+    print(f"============================== Initial Write Mode ==============================")
+    
     config = state["config"]
     subtasks = state["subtasks"]
-    
     subtasks = sorted(subtasks, key=compute_priority)
     
     writed_files = []
@@ -65,16 +150,10 @@ def input_writer_node(state):
         similar_file_text = state["tutorial_reference"]
         
         # Generate the complete foamfile.
-        code_system_prompt = (
-            "You are an expert in OpenFOAM simulation and numerical modeling."
-            f"Your task is to generate a complete and functional file named: <file_name>{file_name}</file_name> within the <folder_name>{folder_name}</folder_name> directory. "
-            "Ensure all required values are present and match with the files content already generated."
-            "Before finalizing the output, ensure:\n"
-            "- All necessary fields exist (e.g., if `nu` is defined in `constant/transportProperties`, it must be used correctly in `0/U`).\n"
-            "- Cross-check field names between different files to avoid mismatches.\n"
-            "- Ensure units and dimensions are correct** for all physical variables.\n"
-            f"- Ensure case solver settings are consistent with the user's requirements. Available solvers are: {state['case_stats']['case_solver']}.\n"
-            "Provide only the code—no explanations, comments, or additional text."
+        code_system_prompt = INITIAL_WRITE_SYSTEM_PROMPT.format(
+            file_name=file_name,
+            folder_name=folder_name,
+            case_solver=state['case_stats']['case_solver']
         )
 
         code_user_prompt = (

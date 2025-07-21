@@ -4,7 +4,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 import argparse
 from pathlib import Path
-from utils import LLMService
+from utils import LLMService, GraphState
 
 from config import Config
 from nodes.architect_node import architect_node
@@ -15,7 +15,6 @@ from nodes.reviewer_node import reviewer_node
 from nodes.visualization_node import visualization_node
 from nodes.hpc_runner_node import hpc_runner_node
 from router_func import (
-    GraphState, 
     route_after_architect, 
     route_after_input_writer, 
     route_after_runner, 
@@ -87,8 +86,18 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
         mesh_commands=None,
         custom_mesh_used=None,
         mesh_type=None,
-        custom_mesh_path=custom_mesh_path
+        custom_mesh_path=custom_mesh_path,
+        # Initialize review and rewrite related fields
+        review_analysis=None,
+        input_writer_mode="initial"
     )
+
+    if custom_mesh_path:
+        state["mesh_type"] = "custom_mesh"
+        print(f"Custom mesh path: {custom_mesh_path}")
+    else:
+        state["mesh_type"] = "standard_mesh"
+        print("No custom mesh path provided.")
     
     return state
 
