@@ -244,12 +244,15 @@ Based on the provided OpenFOAM case files, generate a user_requirement that foll
 STRUCTURE REQUIREMENTS:
 1. Start with "do a [simulation type]" or "Perform a [simulation type]" or "Conduct a [simulation type]"
 2. Include solver specification: "using [solver name] solver" or "Use [solver name] solver"
-3. Specify geometric details with precise dimensions
-4. Define all boundary conditions for different patches/surfaces
-5. Include time parameters (start time, end time, timestep, output frequency)
-6. Specify physical properties (viscosity, density, temperature, pressure, etc.)
-7. Mention grid/mesh details when relevant
-8. Include algorithm details (PIMPLE, SIMPLE, etc.) when applicable
+3. Specify geometric details with precise dimensions.
+4. When reporting dimensions, report values as is in the geometry file without scaling using convertToMeters parameter. Further report the convertToMeters value seperatly. 
+5. Define all boundary conditions for different patches/surfaces
+6. Include time parameters (start time, end time, timestep, output frequency)
+7. Specify physical properties (viscosity, density, temperature, pressure, etc.)
+8. Mention grid/mesh details when relevant
+9. Include algorithm details (PIMPLE, SIMPLE, etc.) when applicable
+10. When reporting intial location of fluid, report their location in x,y,z coordinates. For example water occupies the region 0<=x<=1, 0<=y<=1, 0<=z<=1.
+11. Detail the geometry of the domain as much as possible in a concise manner.
 
 TECHNICAL ACCURACY:
 - Use correct OpenFOAM terminology and solver names
@@ -377,10 +380,10 @@ def main():
     parser.add_argument('--output', type=str,
                         default='raw/openfoam_user_requirements.jsonl',
                         help='Output JSONL file path')
-    parser.add_argument('--model-provider', type=str, default='bedrock',
+    parser.add_argument('--model-provider', type=str, default='openai',
                         choices=['openai', 'bedrock'],
                         help='Model provider')
-    parser.add_argument('--model-version', type=str, default='arn:aws:bedrock:us-west-2:991404956194:application-inference-profile/56i8iq1vib3e',
+    parser.add_argument('--model-version', type=str, default='gpt-4o',
                         help='Model version')
     parser.add_argument('--temperature', type=float, default=0.6,
                         help='Temperature for LLM')
