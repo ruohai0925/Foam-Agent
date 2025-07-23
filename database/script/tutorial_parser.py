@@ -92,6 +92,10 @@ def find_cases(root_dir):
         "allrun_read_fail": 0
     }
 
+    # Get FOAM_TUTORIALS from environment or fallback
+    FOAM_TUTORIALS = os.environ.get("FOAM_TUTORIALS", "/home/somasn/Documents/LLM/OpenFOAM-10/tutorials")
+    blockmesh_resource_dir = os.path.join(FOAM_TUTORIALS, "resources", "blockMesh")
+
     for root, dirs, files in os.walk(root_dir):
         stats["directories_scanned"] += 1  # Scanning this directory
 
@@ -159,7 +163,43 @@ def find_cases(root_dir):
                 # If the relative path has exactly 4 components: domain/solver/category/caseName
                 elif len(path_components) == 4:
                     domain, solver, category = path_components[0], path_components[1], path_components[2]
-            
+
+            # --- NEW LOGIC: Check for missing blockMeshDict and copy if referenced in Allrun ---
+            system_dir = os.path.join(root, "system")
+            blockmeshdict_path = os.path.join(system_dir, "blockMeshDict")
+            if not os.path.isfile(blockmeshdict_path):
+                # Only try if Allrun exists and was read
+                if allrun_content != "None":
+                    # Look for blockMesh -dict $FOAM_TUTORIALS/resources/blockMesh/<name>
+                    pattern = r"blockMesh\s+-dict\s+\$FOAM_TUTORIALS/resources/blockMesh/([\w\d_]+)"
+                    match = re.search(pattern, allrun_content)
+                    if match:
+                        referenced_file = match.group(1)
+                        src_blockmeshdict = os.path.join(blockmesh_resource_dir, referenced_file)
+                        if os.path.isfile(src_blockmeshdict):
+                            # Copy to system/blockMeshDict
+                            try:
+                                with open(src_blockmeshdict, "r") as src_f:
+                                    blockmesh_content = src_f.read()
+                                # Save to the case's system dir
+                                os.makedirs(system_dir, exist_ok=True)
+                                with open(blockmeshdict_path, "w") as dst_f:
+                                    dst_f.write(blockmesh_content)
+                                # Add to in-memory structures for output
+                                file_contents["blockMeshDict"] = blockmesh_content
+                                file_names.append("blockMeshDict")
+                                folder_names["blockMeshDict"] = "system"
+                                print(f"[INFO] Copied {src_blockmeshdict} to {blockmeshdict_path} for case {case_name}")
+                            except Exception as e:
+                                print(f"[WARNING] Failed to copy {src_blockmeshdict} to {blockmeshdict_path}: {e}")
+                        else:
+                            print(f"[WARNING] Referenced blockMeshDict {src_blockmeshdict} not found for case {case_name}")
+                    else:
+                        print(f"[INFO] No blockMesh -dict reference found in Allrun for case {case_name}")
+                else:
+                    print(f"[INFO] No Allrun file to check for blockMeshDict reference in case {case_name}")
+            # --- END NEW LOGIC ---
+
             # Append the extracted metadata to the 'cases' list
             cases.append({
                 "case_name": case_name,
