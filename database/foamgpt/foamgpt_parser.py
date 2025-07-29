@@ -95,23 +95,6 @@ def process_file(input_path: Path, output_path: Path, char_limit: int):
                     'length': len(file_info['file_content'])
                 })
                 continue
-
-            # system_prompt = (
-            #     "You are an expert in OpenFOAM simulation and numerical modeling."
-            #     f"Your task is to generate a complete and functional file named: <file_name>{file_info['file_name']}</file_name> within the <folder_name>{file_info['folder_name']}</folder_name> directory. "
-            #     "Before finalizing the output, ensure:\n"
-            #     "- Ensure units and dimensions are correct** for all physical variables.\n"
-            #     f"- Ensure case solver settings are consistent with the user's requirements. Available solvers are: {case_data['case_solver']}.\n"
-            #     "Provide only the code—no explanations, comments, or additional text."
-            # )
-
-            # user_prompt = (
-            #     f"User requirement: {state['user_requirement']}\n"
-            #     f"Just modify the necessary parts to make the file complete and functional."
-            #     "Please ensure that the generated file is complete, functional, and logically sound."
-            #     "Additionally, apply your domain expertise to verify that all numerical values are consistent with the user's requirements, maintaining accuracy and coherence."
-            #     "When generating controlDict, do not include anything to preform post processing. Just include the necessary settings to run the simulation."
-            # )
             
             record = {
                 'file_name': file_info['file_name'],
@@ -160,29 +143,18 @@ def main():
                         help='Character limit for file content (default: 5000)')
     
     args = parser.parse_args()
-    
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"❌ Error: Input file '{input_path}' not found")
-        return
-    
-    # Generate output filename if not specified
-    if args.output is None:
-        output_path = input_path.with_suffix('.jsonl')
-    else:
-        output_path = Path(args.output)
-    
-    print(f"📂 Input: {input_path}")
-    print(f"💾 Output: {output_path}")
+
+    input_openfoam_file_path = Path(__file__).parent.parent / 'raw' / 'openfoam_tutorials_details.txt'
+    output_parsed_file_path = Path(__file__).parent / 'data' / 'parsed_openfoam_cases.jsonl'
+
+    print(f"📂 Input: {input_openfoam_file_path}")      
+    print(f"📂 Output: {output_parsed_file_path}")
     print(f"📏 Character limit: {args.char_limit}")
     print()
     
-    process_file(input_path, output_path, args.char_limit)
+    process_file(input_openfoam_file_path, output_parsed_file_path, args.char_limit)
     
-    print(f"\n✅ Done! Output saved to: {output_path}")
-    print("\n💡 To load in HuggingFace datasets:")
-    print("   from datasets import load_dataset")
-    print(f"   dataset = load_dataset('json', data_files='{output_path}')")
+    print(f"\n✅ Done! Output saved to: {output_parsed_file_path}")
 
 
 if __name__ == "__main__":
