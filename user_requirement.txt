@@ -1,5 +1,15 @@
+CFD仿真需求 - Case 20250729_111646
+==================================================
+创建时间: 2025-07-29 11:16:46
+
+[11:16:46] 用户需求:
 I want to simulate a classic lid-driven cavity flow problem. This is a 2D square cavity with dimensions 1m × 1m × 0.01m (effectively 2D).
+
 The cavity is filled with incompressible fluid. The top wall moves at 1 m/s in the x-direction, while the other three walls remain stationary.
+
 Use a structured grid of 64×64×1 cells, with a time step of 0.005 seconds, simulating for 20 seconds total.
+
 The fluid viscosity (`nu`) is 1e-03 m²/s, and gravity is not considered.
+
 Output results every 200 time steps, and generate pressure and velocity contour plots.
+
