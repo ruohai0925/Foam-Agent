@@ -229,6 +229,7 @@ def _initial_write_mode(state):
         f"Reference Allrun scripts from similar cases: {state['allrun_reference']}\n\n"
         "If custom mesh commands are provided, make sure to include them in the appropriate order in the Allrun script. "
         "CRITICAL: Do not include any post processing commands in the Allrun script."
+        "CRITICAL: Do not include any commands to convert mesh to foam format like gmshToFoam or others."
     )
 
     if state.get("mesh_mode") == "custom":
