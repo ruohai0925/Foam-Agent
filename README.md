@@ -31,6 +31,21 @@ Our framework offers three key innovations:
 - **Automatic diagnosis and resolution** of configuration issues
 - **Iterative refinement process** that progressively improves simulation configurations
 
+### 📐 **External Mesh File Support**
+- **Custom mesh integration** with GMSH `.msh` files
+- **Boundary condition specification** through natural language requirements
+- **Currently supports** GMSH ASCII 2.2 format mesh files
+- **Seamless workflow** from mesh import to simulation execution
+
+**Example Usage:**
+```bash
+python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path ./user_requirement.txt --custom_mesh_path ./geometry.msh
+```
+
+**Example Mesh File:** The `geometry.msh` file in this repository is taken from the [tandem wing tutorial](https://github.com/openfoamtutorials/tandem_wing) and demonstrates a 3D tandem wing simulation with NACA 0012 airfoils.
+
+**Requirements Format:** In your `user_req_tandem_wing.txt`, describe the boundary conditions and physical parameters for your custom mesh. The agent will automatically detect the mesh type and generate appropriate OpenFOAM configuration files.
+
 ## Getting Started
 
 ### 1. Clone the repository and install dependencies
