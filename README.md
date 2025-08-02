@@ -39,7 +39,7 @@ Our framework offers three key innovations:
 
 **Example Usage:**
 ```bash
-python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path ./user_requirement.txt --custom_mesh_path ./geometry.msh
+python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path ./user_requirement.txt --custom_mesh_path ./tandem_wing.msh
 ```
 
 **Example Mesh File:** The `geometry.msh` file in this repository is taken from the [tandem wing tutorial](https://github.com/openfoamtutorials/tandem_wing) and demonstrates a 3D tandem wing simulation with NACA 0012 airfoils.
