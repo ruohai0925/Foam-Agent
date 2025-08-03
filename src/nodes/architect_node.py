@@ -5,6 +5,7 @@ from utils import save_file, retrieve_faiss, parse_directory_structure
 from pydantic import BaseModel, Field
 from typing import List
 import shutil
+from router_func import llm_requires_custom_mesh
 
 class CaseSummaryPydantic(BaseModel):
     case_name: str = Field(description="name of the case")
@@ -129,6 +130,8 @@ def architect_node(state):
         f"User Requirement: {user_requirement}\n\n"
         f"Reference Directory Structure (similar case): {dir_structure}\n\n{dir_counts_str}\n\n"        
         "Make sure you generate all the necessary files for the user's requirements."
+        "Do not include any gmsh files like .geo etc. in the subtasks."
+        "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or is using an external uploadedcustom mesh"
         "Please generate the output as structured JSON."
     )
     
@@ -141,6 +144,19 @@ def architect_node(state):
     print(f"Generated {len(decompose_resposne.subtasks)} subtasks.")
 
     subtasks = decompose_resposne.subtasks
+
+    mesh_type = llm_requires_custom_mesh(state)
+    if mesh_type == 1:
+        mesh_type_value = "custom_mesh"
+        print("Architect determined: Custom mesh requested.")
+    elif mesh_type == 2:
+        mesh_type_value = "gmsh_mesh"
+        print("Architect determined: GMSH mesh requested.")
+    else:
+        mesh_type_value = "standard_mesh"
+        print("Architect determined: Standard mesh generation.")
+    
+    print(f"Architect set mesh_type to: {mesh_type_value}")
 
     # Return updated state
     return {
@@ -155,4 +171,5 @@ def architect_node(state):
         "case_info": case_info,
         "allrun_reference": allrun_reference,
         "subtasks": [{"file_name": subtask.file_name, "folder_name": subtask.folder_name} for subtask in subtasks],
+        "mesh_type": mesh_type_value,
     }

@@ -51,7 +51,7 @@ def create_foam_agent_graph() -> StateGraph:
 
 def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Optional[str] = None) -> GraphState:
     case_stats = json.load(open(f"{config.database_path}/raw/openfoam_case_stats.json", "r"))
-    mesh_type = "custom_mesh" if custom_mesh_path else "standard_mesh"
+    # mesh_type = "custom_mesh" if custom_mesh_path else "standard_mesh"
     state = GraphState(
         user_requirement=user_requirement,
         config=config,
@@ -81,7 +81,7 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
         mesh_info=None,
         mesh_commands=None,
         custom_mesh_used=None,
-        mesh_type=mesh_type,
+        mesh_type=None,
         custom_mesh_path=custom_mesh_path,
         review_analysis=None,
         input_writer_mode="initial"

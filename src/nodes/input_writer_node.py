@@ -245,6 +245,8 @@ def _initial_write_mode(state):
         "You need to rely on your OpenFOAM and physics knowledge to discern this, and pay more attention to user requirements, " 
         "as your ultimate goal is to fulfill the user's requirements and generate an allrun script that meets those requirements."
         "CRITICAL: Do not include any post processing commands in the Allrun script."
+        "CRITICAL: Do not include any commands to convert mesh to foam format like gmshToFoam or others."
+        "CRITICAL: Do not include any commands that run gmsh to create the mesh."
         "Generate the Allrun script strictly based on the above information. Do not include explanations, comments, or additional text. Put the code in ``` tags."
     )
 

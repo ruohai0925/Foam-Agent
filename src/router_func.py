@@ -31,7 +31,9 @@ def llm_requires_custom_mesh(state: GraphState) -> int:
     
     user_prompt = (
         f"User requirement: {user_requirement}\n\n"
-        "Determine if the user wants to use 'custom_mesh' or 'standard_mesh' or 'gmsh_mesh'. "
+        "Determine if the user wants to use a custom mesh file. "
+        "Return exactly 'custom_mesh' if they want to use a custom mesh file, "
+        "'standard_mesh' if they want standard OpenFOAM mesh generation or 'gmsh_mesh' if they want to create mesh using gmsh."
     )
     
     response = state["llm_service"].invoke(user_prompt, system_prompt)
