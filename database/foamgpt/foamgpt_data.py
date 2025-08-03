@@ -50,7 +50,6 @@ def main():
 
         user_prompt = (
             f"User requirement: {case_user_requirement}\n"
-            f"Just modify the necessary parts to make the file complete and functional."
             "Please ensure that the generated file is complete, functional, and logically sound."
             "Additionally, apply your domain expertise to verify that all numerical values are consistent with the user's requirements, maintaining accuracy and coherence."
             "When generating controlDict, do not include anything to preform post processing. Just include the necessary settings to run the simulation."
@@ -73,6 +72,8 @@ def main():
         for data in output_data:
             json.dump(data, f, ensure_ascii=False)
             f.write('\n')
+        
+        print(f"Saved {len(output_data)} data to {Path(__file__).parent / 'data' / 'foamgpt_all.jsonl'}")
 
 if __name__ == "__main__":
     main()

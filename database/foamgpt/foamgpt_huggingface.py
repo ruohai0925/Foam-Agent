@@ -63,8 +63,10 @@ def upload_to_huggingface(train_file, test_file):
 
 if __name__ == "__main__":
     # Execute data splitting
+    print("Splitting data...")
     train_file, test_file = split_data()
     
     # Upload to Hugging Face
+    print("Uploading to Hugging Face...")
     upload_to_huggingface(train_file, test_file)
 
