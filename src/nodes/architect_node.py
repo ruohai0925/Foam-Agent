@@ -131,7 +131,7 @@ def architect_node(state):
         f"Reference Directory Structure (similar case): {dir_structure}\n\n{dir_counts_str}\n\n"        
         "Make sure you generate all the necessary files for the user's requirements."
         "Do not include any gmsh files like .geo etc. in the subtasks."
-        "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or is using an external uploadedcustom mesh"
+        "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
         "Please generate the output as structured JSON."
     )
     
