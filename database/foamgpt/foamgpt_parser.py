@@ -76,15 +76,22 @@ def process_file(input_path: Path, output_path: Path, char_limit: int):
             continue
         
         for file_info in case_data['files']:
+            file_name = file_info['file_name'].strip()
+            folder_name = file_info['folder_name'].strip()
+            case_name = case_data['case_name'].strip()
+            case_domain = case_data['case_domain'].strip()
+            case_category = case_data['case_category'].strip()
+            case_solver = case_data['case_solver'].strip()
+            file_content = file_info['file_content'].strip()
+
             # Check file content length
-            if len(file_info['file_content']) > char_limit:
-                full_path = f"{case_data['case_name']}/{file_info['folder_name']}/{file_info['file_name']}"
+            if len(file_content) > char_limit:
+                full_path = f"{case_name}/{folder_name}/{file_name}"
                 print(f"\n⚠️  WARNING: Skipping file due to length > {char_limit} characters")
-                print(f"   Path: {full_path}")
-                print(f"   Length: {len(file_info['file_content'])} characters")
+                print(f"   Length: {len(file_content)} characters")
                 print(f"   Content preview (first 500 chars):")
                 print("   " + "-" * 60)
-                print(file_info['file_content'][:500] + "...")
+                print(file_content[:500] + "...")
                 print("   " + "-" * 60 + "\n")
                 
                 if full_path == "pitzDaily/system/blockMeshDict":
@@ -92,18 +99,30 @@ def process_file(input_path: Path, output_path: Path, char_limit: int):
 
                 skipped_files.append({
                     'path': full_path,
-                    'length': len(file_info['file_content'])
+                    'length': len(file_content)
                 })
                 continue
+        
+            # Check if the file content is not beginning with "FoamFile"
+            if not file_content.startswith("FoamFile"):
+                print(f"\n⚠️  WARNING: Skipping file due to missing 'FoamFile' header")
+                print(f"   Content preview (first 500 chars):")
+                print("   " + "-" * 60)
+                print(file_content[:500] + "...")
+                print("   " + "-" * 60 + "\n")
+                
+                continue
+
+        
             
             record = {
-                'file_name': file_info['file_name'],
-                'folder_name': file_info['folder_name'],
-                'case_name': case_data['case_name'],
-                'case_domain': case_data['case_domain'],
-                'case_category': case_data['case_category'],
-                'case_solver': case_data['case_solver'],
-                'file_content': file_info['file_content']
+                'file_name': file_name,
+                'folder_name': folder_name,
+                'case_name': case_name,
+                'case_domain': case_domain,
+                'case_category': case_category,
+                'case_solver': case_solver,
+                'file_content': file_content
 
             }
             processed_records.append(record)
@@ -133,14 +152,8 @@ def process_file(input_path: Path, output_path: Path, char_limit: int):
 
 def main():
     parser = argparse.ArgumentParser(description='Convert OpenFOAM tutorials to JSONL format for HuggingFace')
-    parser.add_argument('--input', type=str,
-                        default=str((Path(__file__).parent.parent / 'raw' / 'openfoam_tutorials_details.txt').resolve()),
-                        help='Input file path (default: raw/openfoam_tutorials_details.txt)')
-    parser.add_argument('--output', type=str,
-                        default=str((Path(__file__).parent.parent / 'raw' / 'openfoam_finetune_data.jsonl').resolve()),
-                        help='Output file path (default: raw/openfoam_finetune_data.jsonl)')
-    parser.add_argument('--char-limit', type=int, default=2000,
-                        help='Character limit for file content (default: 5000)')
+    parser.add_argument('--char-limit', type=int, default=1500,
+                        help='Character limit for file content (default: 1500)')
     
     args = parser.parse_args()
 
