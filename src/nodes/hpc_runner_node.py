@@ -136,11 +136,12 @@ def create_slurm_script(case_dir: str, cluster_info: dict, state) -> str:
         "Create a complete SLURM script for running OpenFOAM simulations. "
         "The script should include:"
         "1. Proper SLURM directives (#SBATCH) based on the cluster information provided"
-        "2. Module loading for OpenFOAM (adjust based on common cluster configurations)"
-        "3. Environment setup for OpenFOAM"
+        "2. Do not load openfoam"
+        "3. Load libaraies for openfoam for run in parallel"
         "4. Directory navigation and execution of the Allrun script"
         "5. Error handling and status reporting"
         "6. Any cluster-specific optimizations or requirements"
+        "7. Use your understanding of the documentation of the cluster and figure out the syntax of their jobscript."
         ""
         "Return ONLY the complete SLURM script content. Do not include any explanations or markdown formatting."
         "Make sure the script is executable and follows best practices for the specified cluster."
@@ -181,7 +182,7 @@ def create_slurm_script(case_dir: str, cluster_info: dict, state) -> str:
     return script_path
 
 
-def create_slurm_script_with_error_context(case_dir: str, cluster_info: dict, state, error_message: str = "") -> str:
+def create_slurm_script_with_error_context(case_dir: str, cluster_info: dict, state, error_message: str = "", previous_script_content: str = "") -> str:
     """
     Create a SLURM script for OpenFOAM simulation using LLM, with error context for retries.
     
@@ -190,6 +191,7 @@ def create_slurm_script_with_error_context(case_dir: str, cluster_info: dict, st
         cluster_info: Dictionary containing cluster configuration
         state: Current graph state containing LLM service
         error_message: Error message from previous submission attempt
+        previous_script_content: Content of the previous failed SLURM script
         
     Returns:
         str: Path to the created SLURM script
@@ -199,20 +201,25 @@ def create_slurm_script_with_error_context(case_dir: str, cluster_info: dict, st
         "Create a complete SLURM script for running OpenFOAM simulations. "
         "The script should include:"
         "1. Proper SLURM directives (#SBATCH) based on the cluster information provided"
-        "2. Module loading for OpenFOAM (adjust based on common cluster configurations)"
-        "3. Environment setup for OpenFOAM"
+        "2. Do not load OpenFOAM"
+        "3. Load libaraies for openfoam for run in parallel"
         "4. Directory navigation and execution of the Allrun script"
         "5. Error handling and status reporting"
         "6. Any cluster-specific optimizations or requirements"
+        "7. Use your understanding of the documentation of the cluster and figure out the syntax of their jobscript."
         ""
-        "If an error message is provided from a previous submission attempt, "
-        "analyze the error and modify the script to address the issue. "
-        "Common issues to consider:"
+        "If a previous script and error message are provided, analyze the error and the script "
+        "to identify what went wrong and fix it. Common issues to consider:"
         "- Invalid account numbers or partitions"
         "- Insufficient resources (memory, time, nodes)"
         "- Missing modules or environment variables"
         "- Incorrect file paths or permissions"
         "- Cluster-specific requirements or restrictions"
+        "- Syntax errors in SLURM directives"
+        "- Incorrect module names or versions"
+        ""
+        "Compare the previous script with the error message to identify the specific issue "
+        "and create a corrected version."
         ""
         "Return ONLY the complete SLURM script content. Do not include any explanations or markdown formatting."
         "Make sure the script is executable and follows best practices for the specified cluster."
@@ -230,11 +237,12 @@ def create_slurm_script_with_error_context(case_dir: str, cluster_info: dict, st
         f"Case directory: {case_dir}\n"
     )
     
-    if error_message:
+    if error_message and previous_script_content:
         user_prompt += f"\nPrevious submission failed with error: {error_message}\n"
-        user_prompt += "Please analyze this error and modify the script to address the issue."
+        user_prompt += f"Previous SLURM script that failed:\n```bash\n{previous_script_content}\n```\n"
+        user_prompt += "Please analyze this error and the previous script to identify the issue and create a corrected version."
     
-    user_prompt += f"\nGenerate a complete SLURM script that will run the OpenFOAM simulation using the Allrun script."
+    user_prompt += f"\nGenerate a complete SLURM script that will run the OpenFOAM simulation using the Allrun script. Return ONLY the complete SLURM script content. Do not include any explanations or markdown formatting."
     
     response = state["llm_service"].invoke(user_prompt, system_prompt)
     
@@ -360,7 +368,15 @@ def hpc_runner_node(state):
             script_path = create_slurm_script(case_dir, cluster_info, state)
         else:
             print(f"Regenerating SLURM script based on previous error...")
-            script_path = create_slurm_script_with_error_context(case_dir, cluster_info, state, last_error_msg)
+            # Read the previous failed script content
+            previous_script_content = ""
+            try:
+                with open(script_path, 'r') as f:
+                    previous_script_content = f.read()
+            except Exception as e:
+                print(f"Warning: Could not read previous script: {e}")
+            
+            script_path = create_slurm_script_with_error_context(case_dir, cluster_info, state, last_error_msg, previous_script_content)
         
         print(f"SLURM script created at: {script_path}")
         
