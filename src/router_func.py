@@ -41,7 +41,9 @@ def llm_requires_custom_mesh(state: GraphState) -> int:
     # 用户提示词：具体的问题描述
     user_prompt = (
         f"User requirement: {user_requirement}\n\n"
-        "Determine if the user wants to use 'custom_mesh' or 'standard_mesh' or 'gmsh_mesh'. "
+        "Determine if the user wants to use a custom mesh file. "
+        "Return exactly 'custom_mesh' if they want to use a custom mesh file, "
+        "'standard_mesh' if they want standard OpenFOAM mesh generation or 'gmsh_mesh' if they want to create mesh using gmsh."
     )
     
     # 检查LLM服务是否可用

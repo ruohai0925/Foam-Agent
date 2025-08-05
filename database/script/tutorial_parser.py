@@ -122,11 +122,12 @@ def find_cases(root_dir):
         "allrun_read_fail": 0          # 读取失败的Allrun文件数
     }
 
-
     # Get FOAM_TUTORIALS from environment or fallback
     FOAM_TUTORIALS = os.environ.get("FOAM_TUTORIALS", "/home/somasn/Documents/LLM/OpenFOAM-10/tutorials")
     blockmesh_resource_dir = os.path.join(FOAM_TUTORIALS, "resources", "blockMesh")
 
+    for root, dirs, files in os.walk(root_dir):
+        stats["directories_scanned"] += 1  # Scanning this directory
     print(f"🚀 开始搜索OpenFOAM案例，根目录: {root_dir}")
 
 

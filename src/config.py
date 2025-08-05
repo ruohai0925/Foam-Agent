@@ -13,8 +13,7 @@ class Config:
     """
     
     # 最大循环次数 - 控制AI代理的最大执行轮次，防止无限循环
-    max_loop: int = 2 # 50
-    # max_loop: int = 10
+    max_loop: int = 10 # 50
     
     # 批处理大小 - 每次处理文档或任务的数量
     batchsize: int = 10
@@ -37,8 +36,14 @@ class Config:
     
     # 最大时间限制 - OpenFOAM运行的最大时间限制（秒），超时后自动终止，这个很有意思
     max_time_limit = 36000 # Max time limit after which the openfoam run will be terminated
-    model_provider: str = "openai"# [openai, ollama, bedrock]
+    
+    # 模型提供商 - 指定使用的AI模型服务提供商
+    model_provider: str = "openai" # [openai, ollama]
+    
+    # 模型版本 - 指定使用的具体AI模型版本
     # model_version should be in ["gpt-4o", "deepseek-r1:32b-qwen-distill-fp16", "qwen2.5:32b-instruct"]
-    model_version: str = "gpt-4o" 
-    temperature: float = 0.0
+    model_version: str = "gpt-4o"
+    
+    # 温度参数 - 控制AI模型输出的随机性，值越低输出越确定性
+    temperature: float = 0.6
     

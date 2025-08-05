@@ -88,7 +88,7 @@ def create_foam_agent_graph() -> StateGraph:
 
 def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Optional[str] = None) -> GraphState:
     case_stats = json.load(open(f"{config.database_path}/raw/openfoam_case_stats.json", "r"))
-    mesh_type = "custom_mesh" if custom_mesh_path else "standard_mesh"
+    # mesh_type = "custom_mesh" if custom_mesh_path else "standard_mesh"
     state = GraphState(
         user_requirement=user_requirement,
         config=config,
@@ -118,7 +118,7 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
         mesh_info=None,
         mesh_commands=None,
         custom_mesh_used=None,
-        mesh_type=mesh_type,
+        mesh_type=None,
         custom_mesh_path=custom_mesh_path,
         review_analysis=None,
         input_writer_mode="initial"
@@ -130,6 +130,18 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
     return state
 
 def main(user_requirement: str, config: Config, custom_mesh_path: Optional[str] = None):
+    """Main function to run the OpenFOAM workflow.
+    
+    这是整个系统的核心入口函数，负责：
+    1. 创建工作流图并编译
+    2. 初始化工作流状态
+    3. 执行工作流
+    4. 处理结果和统计信息
+    
+    Args:
+        user_requirement (str): 用户的CFD仿真需求描述
+        config (Config): 系统配置对象
+    """
     """Main function to run the OpenFOAM workflow."""
     
     # 步骤1：创建并编译工作流图

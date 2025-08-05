@@ -7,6 +7,7 @@ database/raw
 output/
 output*/
 benchmark/
+database/foamgpt/data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
