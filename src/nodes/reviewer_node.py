@@ -82,6 +82,8 @@ def reviewer_node(state):
         f"</Attempt>\n"  # 结束标签，包含空行
     ]
     history_text.extend(current_attempt)
+    print(f"[reviewer_node] 当前尝试次数: {len(history_text)//4}")
+    print(f"[reviewer_node] 历史记录总长度: {len(history_text)} 行")
     
     print(review_content)
 

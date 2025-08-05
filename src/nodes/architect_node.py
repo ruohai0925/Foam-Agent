@@ -170,6 +170,8 @@ def architect_node(state):
 
     # TODO update all information to faiss_detailed
     
+    
+    # TODO update all information to faiss_detailed
     tutorial_reference = faiss_detailed
     case_path_reference = case_path
     dir_structure_reference = dir_structure

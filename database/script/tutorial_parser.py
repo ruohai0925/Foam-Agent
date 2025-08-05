@@ -128,6 +128,8 @@ def find_cases(root_dir):
 
     for root, dirs, files in os.walk(root_dir):
         stats["directories_scanned"] += 1  # Scanning this directory
+    print(f"🚀 开始搜索OpenFOAM案例，根目录: {root_dir}")
+
 
     for root, dirs, files in os.walk(root_dir):
         stats["directories_scanned"] += 1  # 统计扫描的目录
@@ -210,8 +212,6 @@ def find_cases(root_dir):
                     print(f"  📋 4组件路径: domain={domain}, solver={solver}, category={category}")
             
             print(f"  📊 最终元数据: case_name={case_name}, solver={solver}, category={category}, domain={domain}")
-            
-            # 将提取的元数据添加到'cases'列表
 
             # --- NEW LOGIC: Check for missing blockMeshDict and copy if referenced in Allrun ---
             system_dir = os.path.join(root, "system")
@@ -250,6 +250,9 @@ def find_cases(root_dir):
             # --- END NEW LOGIC ---
 
             # Append the extracted metadata to the 'cases' list
+            
+            # 将提取的元数据添加到'cases'列表
+
             cases.append({
                 "case_name": case_name,
                 "solver": solver,

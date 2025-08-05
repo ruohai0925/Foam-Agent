@@ -11,7 +11,6 @@ import argparse
 from pathlib import Path
 from utils import LLMService, GraphState
 
-# 导入配置和各个工作流节点
 from config import Config
 from nodes.architect_node import architect_node      # 架构师节点：解析用户需求并规划工作
 from nodes.meshing_node import meshing_node          # 网格节点：处理自定义网格文件
@@ -143,6 +142,7 @@ def main(user_requirement: str, config: Config, custom_mesh_path: Optional[str] 
         user_requirement (str): 用户的CFD仿真需求描述
         config (Config): 系统配置对象
     """
+    """Main function to run the OpenFOAM workflow."""
     
     # 步骤1：创建并编译工作流图
     workflow = create_foam_agent_graph()
@@ -184,27 +184,25 @@ if __name__ == "__main__":
     """
     # 创建命令行参数解析器
     parser = argparse.ArgumentParser(
-        description="Run the OpenFOAM workflow"  # 参数解析器描述
+        description="Run the OpenFOAM workflow"
+    )
+    parser.add_argument(
+        "--prompt_path",
+        type=str,
+        default=f"{Path(__file__).parent.parent}/user_requirement.txt",
+        help="User requirement file path for the workflow.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="",
+        help="Output directory for the workflow.",
     )
     parser.add_argument(
         "--custom_mesh_path",
         type=str,
         default=None,
         help="Path to custom mesh file (e.g., .msh, .stl, .obj). If not provided, no custom mesh will be used.",
-    )
-    
-    # 定义命令行参数
-    parser.add_argument(
-        "--prompt_path",  # 用户需求文件路径参数
-        type=str,
-        default=f"{Path(__file__).parent.parent}/user_requirement.txt",  # 默认路径
-        help="User requirement file path for the workflow.",  # 帮助信息，
-    )
-    parser.add_argument(
-        "--output_dir",  # 输出目录参数
-        type=str,
-        default="",  # 默认为空，使用配置中的默认目录
-        help="Output directory for the workflow.",  # 帮助信息
     )
     
     # 解析命令行参数
