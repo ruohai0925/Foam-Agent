@@ -252,6 +252,10 @@ class GraphState(TypedDict):
     # Review and rewrite related fields
     review_analysis: Optional[str]
     input_writer_mode: Optional[str]
+    # HPC-related fields
+    job_id: Optional[str]
+    cluster_info: Optional[dict]
+    slurm_script_path: Optional[str]
 
 def tokenize(text: str) -> str:
     # Replace underscores with spaces

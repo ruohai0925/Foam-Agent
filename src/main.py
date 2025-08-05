@@ -84,7 +84,10 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
         mesh_type=None,
         custom_mesh_path=custom_mesh_path,
         review_analysis=None,
-        input_writer_mode="initial"
+        input_writer_mode="initial",
+        job_id=None,
+        cluster_info=None,
+        slurm_script_path=None
     )
     if custom_mesh_path:
         print(f"Custom mesh path: {custom_mesh_path}")
