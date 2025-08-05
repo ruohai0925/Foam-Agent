@@ -13,7 +13,7 @@ class Config:
     """
     
     # 最大循环次数 - 控制AI代理的最大执行轮次，防止无限循环
-    max_loop: int = 2 # 50
+    max_loop: int = 10 # 50
     
     # 批处理大小 - 每次处理文档或任务的数量
     batchsize: int = 10
@@ -45,5 +45,5 @@ class Config:
     model_version: str = "gpt-4o"
     
     # 温度参数 - 控制AI模型输出的随机性，值越低输出越确定性
-    temperature: float = 0.1
+    temperature: float = 0.6
     

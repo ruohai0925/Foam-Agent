@@ -14,6 +14,7 @@ from utils import save_file, retrieve_faiss, parse_directory_structure
 from pydantic import BaseModel, Field
 from typing import List
 import shutil
+from router_func import llm_requires_custom_mesh
 
 # 数据模型定义
 class CaseSummaryPydantic(BaseModel):
@@ -168,6 +169,7 @@ def architect_node(state):
     # exit()  # 注释掉这行，让程序继续执行
 
     # TODO update all information to faiss_detailed
+    
     tutorial_reference = faiss_detailed
     case_path_reference = case_path
     dir_structure_reference = dir_structure
@@ -202,6 +204,8 @@ def architect_node(state):
         f"User Requirement: {user_requirement}\n\n"
         f"Reference Directory Structure (similar case): {dir_structure}\n\n{dir_counts_str}\n\n"        
         "Make sure you generate all the necessary files for the user's requirements."
+        "Do not include any gmsh files like .geo etc. in the subtasks."
+        "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
         "Please generate the output as structured JSON."
     )
     
@@ -226,8 +230,21 @@ def architect_node(state):
     print(f"  - case_dir: {case_dir}")
     print(f"  - subtasks数量: {len(subtasks)}")
     
+    mesh_type = llm_requires_custom_mesh(state)
+    if mesh_type == 1:
+        mesh_type_value = "custom_mesh"
+        print("Architect determined: Custom mesh requested.")
+    elif mesh_type == 2:
+        mesh_type_value = "gmsh_mesh"
+        print("Architect determined: GMSH mesh requested.")
+    else:
+        mesh_type_value = "standard_mesh"
+        print("Architect determined: Standard mesh generation.")
+    
+    print(f"Architect set mesh_type to: {mesh_type_value}")
+
+    # Return updated state
     return {
-        **state,
         "case_name": case_name,
         "case_domain": case_domain,
         "case_category": case_category,
@@ -238,5 +255,6 @@ def architect_node(state):
         "dir_structure_reference": dir_structure_reference,
         "case_info": case_info,
         "allrun_reference": allrun_reference,
-        "subtasks": [{"file_name": subtask.file_name, "folder_name": subtask.folder_name} for subtask in subtasks]
+        "subtasks": [{"file_name": subtask.file_name, "folder_name": subtask.folder_name} for subtask in subtasks],
+        "mesh_type": mesh_type_value,
     }
