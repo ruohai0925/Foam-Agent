@@ -181,6 +181,82 @@ def create_slurm_script(case_dir: str, cluster_info: dict, state) -> str:
     return script_path
 
 
+def create_slurm_script_with_error_context(case_dir: str, cluster_info: dict, state, error_message: str = "") -> str:
+    """
+    Create a SLURM script for OpenFOAM simulation using LLM, with error context for retries.
+    
+    Args:
+        case_dir: Directory containing the OpenFOAM case
+        cluster_info: Dictionary containing cluster configuration
+        state: Current graph state containing LLM service
+        error_message: Error message from previous submission attempt
+        
+    Returns:
+        str: Path to the created SLURM script
+    """
+    system_prompt = (
+        "You are an expert in HPC cluster job submission and SLURM scripting. "
+        "Create a complete SLURM script for running OpenFOAM simulations. "
+        "The script should include:"
+        "1. Proper SLURM directives (#SBATCH) based on the cluster information provided"
+        "2. Module loading for OpenFOAM (adjust based on common cluster configurations)"
+        "3. Environment setup for OpenFOAM"
+        "4. Directory navigation and execution of the Allrun script"
+        "5. Error handling and status reporting"
+        "6. Any cluster-specific optimizations or requirements"
+        ""
+        "If an error message is provided from a previous submission attempt, "
+        "analyze the error and modify the script to address the issue. "
+        "Common issues to consider:"
+        "- Invalid account numbers or partitions"
+        "- Insufficient resources (memory, time, nodes)"
+        "- Missing modules or environment variables"
+        "- Incorrect file paths or permissions"
+        "- Cluster-specific requirements or restrictions"
+        ""
+        "Return ONLY the complete SLURM script content. Do not include any explanations or markdown formatting."
+        "Make sure the script is executable and follows best practices for the specified cluster."
+    )
+    
+    user_prompt = (
+        f"Create a SLURM script for OpenFOAM simulation with the following parameters:\n"
+        f"Cluster: {cluster_info['cluster_name']}\n"
+        f"Account: {cluster_info['account_number']}\n"
+        f"Partition: {cluster_info['partition']}\n"
+        f"Nodes: {cluster_info['nodes']}\n"
+        f"Tasks per node: {cluster_info['ntasks_per_node']}\n"
+        f"Time limit: {cluster_info['time_limit']} hours\n"
+        f"Memory: {cluster_info['memory']} GB per node\n"
+        f"Case directory: {case_dir}\n"
+    )
+    
+    if error_message:
+        user_prompt += f"\nPrevious submission failed with error: {error_message}\n"
+        user_prompt += "Please analyze this error and modify the script to address the issue."
+    
+    user_prompt += f"\nGenerate a complete SLURM script that will run the OpenFOAM simulation using the Allrun script."
+    
+    response = state["llm_service"].invoke(user_prompt, system_prompt)
+    
+    # Clean up the response to extract just the script content
+    script_content = response.strip()
+    if script_content.startswith('```bash'):
+        script_content = script_content[7:]
+    elif script_content.startswith('```'):
+        script_content = script_content[3:]
+    if script_content.endswith('```'):
+        script_content = script_content[:-3]
+    script_content = script_content.strip()
+    
+    # Ensure the script starts with shebang
+    if not script_content.startswith('#!/bin/bash'):
+        script_content = '#!/bin/bash\n' + script_content
+    
+    script_path = os.path.join(case_dir, "submit_job.slurm")
+    save_file(script_path, script_content)
+    return script_path
+
+
 def submit_slurm_job(script_path: str) -> tuple:
     """
     Submit a SLURM job and return job ID.
@@ -250,10 +326,13 @@ def hpc_runner_node(state):
     """
     HPC Runner node: Extract cluster info from user requirement, create SLURM script,
     submit job to cluster, wait for completion, and check for errors.
+    Retries submission on failure up to max_loop times, regenerating script based on errors.
     """
     config = state["config"]
     case_dir = state["case_dir"]
     allrun_file_path = os.path.join(case_dir, "Allrun")
+    max_loop = config.max_loop
+    current_attempt = 0
     
     print(f"============================== HPC Runner ==============================")
     
@@ -270,25 +349,43 @@ def hpc_runner_node(state):
     cluster_info = extract_cluster_info(state)
     print(f"Cluster info extracted: {cluster_info}")
     
-    # Create SLURM script
-    print("Creating SLURM script...")
-    script_path = create_slurm_script(case_dir, cluster_info, state)
-    print(f"SLURM script created at: {script_path}")
-    
-    # Submit the job
-    print("Submitting job to SLURM...")
-    job_id, success, error_msg = submit_slurm_job(script_path)
-    
-    if not success:
-        print(f"Failed to submit job: {error_msg}")
-        error_logs = [f"Job submission failed: {error_msg}"]
-        return {
-            **state,
-            "error_logs": error_logs,
-            "job_id": None
-        }
-    
-    print(f"Job submitted successfully with ID: {job_id}")
+    # Submit the job with retry logic
+    while current_attempt < max_loop:
+        current_attempt += 1
+        print(f"Attempt {current_attempt}/{max_loop}: Creating and submitting SLURM job...")
+        
+        # Create SLURM script (regenerate on retry with error context)
+        if current_attempt == 1:
+            print("Creating initial SLURM script...")
+            script_path = create_slurm_script(case_dir, cluster_info, state)
+        else:
+            print(f"Regenerating SLURM script based on previous error...")
+            script_path = create_slurm_script_with_error_context(case_dir, cluster_info, state, last_error_msg)
+        
+        print(f"SLURM script created at: {script_path}")
+        
+        job_id, success, error_msg = submit_slurm_job(script_path)
+        
+        if success:
+            print(f"Job submitted successfully with ID: {job_id}")
+            break
+        else:
+            print(f"Attempt {current_attempt} failed: {error_msg}")
+            last_error_msg = error_msg  # Store error for next iteration
+            if current_attempt < max_loop:
+                print(f"Retrying in 5 seconds...")
+                import time
+                time.sleep(5)
+            else:
+                print(f"Maximum attempts ({max_loop}) reached. Job submission failed.")
+                error_logs = [f"Job submission failed after {max_loop} attempts. Last error: {error_msg}"]
+                return {
+                    **state,
+                    "error_logs": error_logs,
+                    "job_id": None,
+                    "cluster_info": cluster_info,
+                    "slurm_script_path": script_path
+                }
     
     # Wait for job completion
     print("Waiting for job completion...")
