@@ -5,6 +5,7 @@ import sys
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from utils import save_file
+import glob
 
 # Helper to get the .foam file name
 def get_foam_file(case_dir):
@@ -16,7 +17,7 @@ VISUALIZATION_SYSTEM_PROMPT = (
     "Your task is to generate a PyVista Python script that visualizes the specified data from the OpenFOAM case. "
     "The script should load the OpenFOAM case data by reading the .foam file (e.g., 'runs.foam') in the case directory using PyVista, display the geometry, and color the surface by the specified field (e.g., 'U' for velocity). "
     "Ensure the script shows the geometry, sets up the colorbar, and saves the visualization as a PNG file. "
-    "Use coolwarm colormap."
+    "Use coolwarm colormap by default."
     "The script must save the visualization as a PNG file, and the output image must contain the geometry and the colorbar, not just the colorbar. "
     "IMPORTANT: Return ONLY the Python code without any markdown formatting, code block markers, or explanatory text. "
     "The script should start with the necessary imports, read the .foam file using PyVista, and end with the screenshot saving."
@@ -27,7 +28,7 @@ ERROR_FIX_SYSTEM_PROMPT = (
     "Your task is to fix the provided PyVista Python script that encountered an error. "
     "Ensure the script loads the OpenFOAM case data by reading the .foam file (e.g., 'runs.foam') in the case directory using PyVista, displays the geometry, and colors the surface by the specified field. "
     "Make sure the script shows the geometry, sets up the colorbar, and saves the visualization as a PNG file. "
-    "Use coolwarm colormap."
+    "Use coolwarm colormap by default."
     "The script must save the visualization as a PNG file, and the output image must contain the geometry and the colorbar, not just the colorbar. "
     "IMPORTANT: Return ONLY the Python code without any markdown formatting, code block markers, or explanatory text. "
     "The script should start with the necessary imports, read the .foam file using PyVista, and end with the screenshot saving."
@@ -104,7 +105,8 @@ def visualization_node(state):
             f"<foam_file>{foam_file}</foam_file>\n"
             f"<visualization_requirements>{state['user_requirement']}</visualization_requirements>\n"
             f"<previous_errors>{error_logs}</previous_errors>\n"
-            f"Please create a PyVista Python script that visualizes the specified data by reading the .foam file ('{foam_file}') and saves it as a PNG file named visualization.png."
+            f"Please create a PyVista Python script that visualizes the specified data by reading the .foam file ('{foam_file}')."
+            "Save the visualization as PNG file named visualization.png if not specified otherwise in the user requirement."
         )
         
         viz_script = state["llm_service"].invoke(viz_prompt, VISUALIZATION_SYSTEM_PROMPT)
@@ -125,9 +127,10 @@ def visualization_node(state):
             print(f"Finished command: Return Code {result.returncode}")
             error_logs = []
             
-            # Check if the output image was created
-            output_image = os.path.join(case_dir, "visualization.png")
-            if os.path.exists(output_image):
+            # Check if any PNG output image was created
+            png_files = glob.glob(os.path.join(case_dir, "*.png"))
+            if png_files:
+                output_image = png_files[0]  # Use the first PNG file found
                 print(f"PyVista visualization created successfully: {output_image}")
                 
                 # Create plot configs and outputs in the expected format
@@ -169,7 +172,7 @@ def visualization_node(state):
                     "pyvista_visualization": pyvista_result
                 }
             else:
-                error_logs.append("Visualization script executed but no output image was created")
+                error_logs.append("Visualization script executed but no PNG output image was created")
                 
         except subprocess.CalledProcessError as e:
             error_message = f"Error executing visualization script: {str(e)}"
@@ -206,9 +209,10 @@ def visualization_node(state):
                 print(f"Finished command: Return Code {result.returncode}")
                 error_logs = []
                 
-                # Check if the output image was created
-                output_image = os.path.join(case_dir, "visualization.png")
-                if os.path.exists(output_image):
+                # Check if any PNG output image was created
+                png_files = glob.glob(os.path.join(case_dir, "*.png"))
+                if png_files:
+                    output_image = png_files[0]  # Use the first PNG file found
                     print(f"PyVista visualization created successfully: {output_image}")
                     
                     # Create plot configs and outputs in the expected format
@@ -250,7 +254,7 @@ def visualization_node(state):
                         "pyvista_visualization": pyvista_result
                     }
                 else:
-                    error_logs.append("Fixed visualization script executed but no output image was created")
+                    error_logs.append("Fixed visualization script executed but no PNG output image was created")
                     
             except subprocess.CalledProcessError as e:
                 error_message = f"Error executing fixed visualization script: {str(e)}"
