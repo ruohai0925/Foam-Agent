@@ -78,16 +78,6 @@ def input_writer_node(state):
     Args:
         state: The current state containing all necessary information
     """
-<<<<<<< HEAD
-<<<<<<< HEAD
-    # 1. 读取配置和子任务
-    config = state["config"]
-    subtasks = state["subtasks"]
-    
-    # 2. 按优先级排序subtasks，保证依赖顺序
-=======
-=======
->>>>>>> main
 
     mode = state["input_writer_mode"]
     
@@ -151,10 +141,7 @@ def _initial_write_mode(state):
     # 1. 读取配置和子任务
     config = state["config"]
     subtasks = state["subtasks"]
-<<<<<<< HEAD
->>>>>>> f2ee405856b6362a38c9d3e6358dcfc592eee05a
-=======
->>>>>>> main
+
     subtasks = sorted(subtasks, key=compute_priority)
     print(f"[input_writer_node] sorted subtasks: {subtasks}")
     
@@ -182,32 +169,12 @@ def _initial_write_mode(state):
         
         # 取相似案例的参考文件内容
         similar_file_text = state["tutorial_reference"]
-        
-<<<<<<< HEAD
-<<<<<<< HEAD
-        # 生成完整foam文件的system prompt
-        code_system_prompt = (
-            "You are an expert in OpenFOAM simulation and numerical modeling."
-            f"Your task is to generate a complete and functional file named: <file_name>{file_name}</file_name> within the <folder_name>{folder_name}</folder_name> directory. "
-            "Ensure all required values are present and match with the files content already generated."
-            "Before finalizing the output, ensure:\n"
-            "- All necessary fields exist (e.g., if `nu` is defined in `constant/transportProperties`, it must be used correctly in `0/U`).\n"
-            "- Cross-check field names between different files to avoid mismatches.\n"
-            "- Ensure units and dimensions are correct** for all physical variables.\n"
-            f"- Ensure case solver settings are consistent with the user's requirements. Available solvers are: {state['case_stats']['case_solver']}.\n"
-            "Provide only the code—no explanations, comments, or additional text."
-=======
-=======
->>>>>>> main
+
         # Generate the complete foamfile.
         code_system_prompt = INITIAL_WRITE_SYSTEM_PROMPT.format(
             file_name=file_name,
             folder_name=folder_name,
             case_solver=state['case_stats']['case_solver']
-<<<<<<< HEAD
->>>>>>> f2ee405856b6362a38c9d3e6358dcfc592eee05a
-=======
->>>>>>> main
         )
 
         # 生成user prompt，包含用户需求、相似案例内容、已生成文件内容
@@ -267,24 +234,10 @@ def _initial_write_mode(state):
         f"Reference Allrun scripts from similar cases: {state['allrun_reference']}\n"
         "Generate only the required OpenFOAM command list—no extra text."
     )
-<<<<<<< HEAD
-<<<<<<< HEAD
-    print("--------------------------------")
-    print(f"[input_writer_node] command_user_prompt: {command_user_prompt}")
-    print("--------------------------------")
-
-    # 6. 调用llm_service生成命令列表
-=======
-=======
->>>>>>> main
 
     if state.get("mesh_type") == "custom_mesh":
         command_user_prompt += f"{mesh_commands_info}\n"
     
-<<<<<<< HEAD
->>>>>>> f2ee405856b6362a38c9d3e6358dcfc592eee05a
-=======
->>>>>>> main
     command_response = state["llm_service"].invoke(command_user_prompt, command_system_prompt, pydantic_obj=CommandsPydantic)
     print(f"[input_writer_node] command_response: {command_response}")
 
@@ -330,23 +283,10 @@ def _initial_write_mode(state):
         "CRITICAL: Do not include any commands that run gmsh to create the mesh."
         "Generate the Allrun script strictly based on the above information. Do not include explanations, comments, or additional text. Put the code in ``` tags."
     )
-<<<<<<< HEAD
-<<<<<<< HEAD
-    print(f"[input_writer_node] allrun_user_prompt: {allrun_user_prompt}")
-=======
-=======
-    print(f"[input_writer_node] allrun_user_prompt: {allrun_user_prompt}")
->>>>>>> main
 
     if state.get("mesh_mode") == "custom":
         allrun_user_prompt += "CRITICAL: Do not include any other mesh commands other than the custom mesh commands.\n"
         allrun_user_prompt += "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
-
-
-<<<<<<< HEAD
->>>>>>> f2ee405856b6362a38c9d3e6358dcfc592eee05a
-=======
->>>>>>> main
     
     # 9. 调用llm_service生成Allrun脚本
     allrun_response = state["llm_service"].invoke(allrun_user_prompt, allrun_system_prompt)
