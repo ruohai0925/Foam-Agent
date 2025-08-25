@@ -1,17 +1,9 @@
 Do an incompressible lid driven cavity flow.
-
 The cavity is a square with dimensions normalized to 1 unit on both 
-
 the x and y axes and very thin in the z-direction (0.1 unit).
-
 Use a grid of 20X20 in x and y direction and 1 cell in z-direction.
-
 The top wall ('movingWall') moves in the x-direction with a uniform 
-
 velocity of 1 m/s. The 'fixedWalls' have a no-slip boundary condition.
-
 The front and back faces are designated as 'empty'.
-
 The simulation runs from time 0 to 10 with a time step of 0.005 units.
-
 The viscosity (nu) is set as constant with a value of 1e-05 m^2/s.
