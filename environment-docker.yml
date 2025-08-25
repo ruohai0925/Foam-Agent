@@ -1,0 +1,39 @@
+name: openfoamAgent
+channels:
+  - conda-forge  
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+    # 核心依赖 - 只保留运行时必需的包
+    - langchain==0.3.18
+    - langchain-anthropic==0.2.4
+    - langchain-community==0.3.17
+    - langchain-core==0.3.34
+    - langchain-openai==0.2.14
+    - langgraph==0.2.71
+    - langgraph-checkpoint==2.0.12
+    - langsmith==0.3.8
+    
+    # AI服务客户端
+    - openai==1.61.1
+    - anthropic==0.45.2
+    - faiss-cpu==1.10.0
+    
+    # 基础依赖
+    - pydantic==2.10.6
+    - pydantic-settings==2.7.1
+    - python-dotenv==1.0.1
+    - requests==2.32.3
+    - httpx==0.28.1
+    - aiohttp==3.11.12
+    
+    # 数据处理
+    - numpy==2.2.2
+    - pyyaml==6.0.2
+    - tiktoken==0.8.0
+    
+    # 工具
+    - tqdm==4.67.1
+    - tenacity==9.0.0
