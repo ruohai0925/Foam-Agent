@@ -58,18 +58,21 @@ def main():
         
         index_match = re.search(r"<index>(.*?)</index>", match, re.DOTALL)
         index_content = index_match.group(1).strip()  # Extract `<index>` content
+        index = index_match.group(0) # include the tags for indexing
         
         # Extract metadata fields
         case_name = extract_field("case name", index_content)
         case_domain = extract_field("case domain", index_content)
         case_category = extract_field("case category", index_content)
         case_solver = extract_field("case solver", index_content)
-        case_directory_structure = re.search(r"<directory_structure>([\s\S]*?)</directory_structure>", full_content).group(1)
+        directory_structure = re.search(r"<directory_structure>([\s\S]*?)</directory_structure>", full_content)
+        case_directory_structure = directory_structure.group(1) # keep only the content for metadata
+        dir_structure = directory_structure.group(0) # include the tags for indexing
         detailed_tutorial = re.search(r"<tutorials>([\s\S]*?)</tutorials>", full_content).group(1)
 
         # Create a Document instance
         documents.append(Document(
-            page_content=tokenize(index_content+case_directory_structure),
+            page_content=tokenize(index + '\n' + dir_structure),
             metadata={
                 "full_content": full_content,  # Store full `<case_begin> ... </case_end>`
                 "case_name": case_name,
