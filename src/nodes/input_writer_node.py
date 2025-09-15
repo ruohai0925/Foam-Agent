@@ -187,8 +187,11 @@ def _initial_write_mode(state):
             "Additionally, apply your domain expertise to verify that all numerical values are consistent with the user's requirements, maintaining accuracy and coherence."
             "When generating controlDict, do not include anything to preform post processing. Just include the necessary settings to run the simulation."
         )
-        if len(writed_files) > 0:
-            code_user_prompt += f"The following are files content already generated: {str(writed_files)}\n\n\nYou should ensure that the new file is consistent with the previous files. Such as boundary conditions, mesh settings, etc."
+        
+        # see `architect_node.py` for the decision on file-dependency
+        if state["file_dependency_flag"]:
+            if len(writed_files) > 0:
+                code_user_prompt += f"The following are files content already generated: {str(writed_files)}\n\n\nYou should ensure that the new file is consistent with the previous files. Such as boundary conditions, mesh settings, etc."
 
         # 4. 调用llm_service生成foam文件内容
         print(f"[input_writer_node] code_user_prompt: {code_user_prompt[:200]}...")

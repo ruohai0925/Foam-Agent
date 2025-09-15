@@ -74,34 +74,22 @@ def main():
 
         # 提取<index>内容
         index_match = re.search(r"<index>(.*?)</index>", match, re.DOTALL)
-        if not index_match:
-            print("  ❌ 未找到<index>标签，跳过")
-            continue
-        index_content = index_match.group(1).strip()
-        print(f"  📝 index内容预览: {index_content[:100]}...")
-
-        # 提取元数据字段
+        index_content = index_match.group(1).strip()  # Extract `<index>` content
+        index = index_match.group(0) # include the tags for indexing
+        
+        # Extract metadata fields
         case_name = extract_field("case name", index_content)
         case_domain = extract_field("case domain", index_content)
         case_category = extract_field("case category", index_content)
         case_solver = extract_field("case solver", index_content)
-        print(f"  🏷️ 名称: {case_name}, 域: {case_domain}, 类别: {case_category}, 求解器: {case_solver}")
+        directory_structure = re.search(r"<directory_structure>([\s\S]*?)</directory_structure>", full_content)
+        case_directory_structure = directory_structure.group(1) # keep only the content for metadata
+        dir_structure = directory_structure.group(0) # include the tags for indexing
+        detailed_tutorial = re.search(r"<tutorials>([\s\S]*?)</tutorials>", full_content).group(1)
 
-        # 提取目录结构
-        dir_match = re.search(r"<directory_structure>([\s\S]*?)</directory_structure>", full_content)
-        case_directory_structure = dir_match.group(1) if dir_match else "Unknown"
-        print(f"  📂 目录结构长度: {len(case_directory_structure)} 字符")
-        print(f"  📂 目录结构预览: {case_directory_structure[:100]}...")
-
-        # 提取详细教程内容
-        tut_match = re.search(r"<tutorials>([\s\S]*?)</tutorials>", full_content)
-        detailed_tutorial = tut_match.group(1) if tut_match else "Unknown"
-        print(f"  📖 教程内容长度: {len(detailed_tutorial)} 字符")
-        print(f"  📖 教程内容预览: {detailed_tutorial[:100]}...")
-
-        # 创建Document对象
-        doc = Document(
-            page_content=tokenize(index_content + case_directory_structure),  # 用index+目录结构做向量化
+        # Create a Document instance
+        documents.append(Document(
+            page_content=tokenize(index + '\n' + dir_structure),
             metadata={
                 "full_content": full_content,  # 存完整内容
                 "case_name": case_name,

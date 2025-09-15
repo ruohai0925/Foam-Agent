@@ -33,14 +33,9 @@ class Config:
     
     # 案例目录 - 特定案例的目录路径，默认为空字符串
     case_dir: str = ""
-    
-    # 最大时间限制 - OpenFOAM运行的最大时间限制（秒），超时后自动终止，这个很有意思
-    max_time_limit = 36000 # Max time limit after which the openfoam run will be terminated
-    
-    # 模型提供商 - 指定使用的AI模型服务提供商
-    model_provider: str = "openai" # [openai, ollama]
-    
-    # 模型版本 - 指定使用的具体AI模型版本
+    max_time_limit: int = 3600 # Max time limit after which the openfoam run will be terminated, in seconds
+    file_dependency_threshold: int = 3000 # threshold length on the similar case; see `nodes/architect_node.py` for details
+    model_provider: str = "openai"# [openai, ollama, bedrock]
     # model_version should be in ["gpt-4o", "deepseek-r1:32b-qwen-distill-fp16", "qwen2.5:32b-instruct"]
     model_version: str = "gpt-4o"
     

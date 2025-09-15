@@ -90,11 +90,9 @@ def main():
         case_domain = extract_field("case domain", index_content)
         case_category = extract_field("case category", index_content)
         case_solver = extract_field("case solver", index_content)
-        print(f"  🏷️ 名称: {case_name}, 域: {case_domain}, 类别: {case_category}, 求解器: {case_solver}")
-
-        # 只保留部分index内容用于向量化
-        index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}</index>"
-        print(f"  📝 用于向量化的index内容: {index_content}")
+        
+        # allrun script content is not sensitive to case domain and category
+        index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}\n</index>\n"
 
         # 提取Allrun脚本内容
         script_match = re.search(r"<allrun_script>([\\s\\S]*?)</allrun_script>", full_content)

@@ -122,23 +122,22 @@ def architect_node(state):
     case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
     print(f"案例信息查询: {case_info}")
     
-    # 第一次检索：基于案例信息检索结构
-    print(f"正在检索案例结构...")
-    faiss_structure_results = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=config.searchdocs)
-    print(f"检索到 {len(faiss_structure_results)} 个结构文档:")
-    for i, result in enumerate(faiss_structure_results):
-        print(f"  文档 {i+1}: case_name={result['case_name']}, case_category={result['case_category']}, case_solver={result['case_solver']}")
-    faiss_structure = faiss_structure_results[0]['full_content']
-    print(f"检索到结构信息长度: {len(faiss_structure)} 字符")
+    faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=config.searchdocs)
+    faiss_structure = faiss_structure[0]['full_content']
+    faiss_structure = re.sub(r"\n{3}", '\n', faiss_structure) # remove extra newlines
     
-    # 第二次检索：基于结构信息检索详细内容
-    print(f"正在检索详细内容...")
-    faiss_detailed_results = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=config.searchdocs)
-    print(f"检索到 {len(faiss_detailed_results)} 个详细文档:")
-    for i, result in enumerate(faiss_detailed_results):
-        print(f"  文档 {i+1}: case_name={result['case_name']}, case_category={result['case_category']}, case_solver={result['case_solver']}")
-    faiss_detailed = faiss_detailed_results[0]['full_content'] # 选择第一个文档，后续可以优化选择最相似的文档
-    print(f"检索到详细内容长度: {len(faiss_detailed)} 字符")
+    # Retrieve by case info + directory structure
+    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=config.searchdocs)
+    faiss_detailed = faiss_detailed[0]['full_content']
+
+    # If the similar case is too long, skip file-dependency to reduce the LLM context length.
+    # Default `file_dependency_threshold=3000` in `src/config.py`
+    file_dependency_flag = state["file_dependency_flag"]
+    if (faiss_detailed.count('\n') < config.file_dependency_threshold):
+        print("File-dependency will be used by input writer.")
+    else:
+        file_dependency_flag = False
+        print("No file-dependency in input writer.")
     
     # 提取目录结构信息
     dir_structure = re.search(r"<directory_structure>(.*?)</directory_structure>", faiss_detailed, re.DOTALL).group(1).strip()
@@ -149,9 +148,8 @@ def architect_node(state):
     dir_counts_str = ',\n'.join([f"There are {count} files in Directory: {directory}" for directory, count in dir_counts.items()])
     print(f"目录文件统计: {dir_counts_str}")
     
-    # 检索Allrun脚本参考
-    print(f"正在检索Allrun脚本...")
-    index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}</index>\n<directory_structure>{dir_structure}</directory_structure>"
+    # Retrieve a reference Allrun script from the FAISS "Allrun" database.
+    index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>"
     faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", index_content, topk=config.searchdocs)
     print(f"检索到 {len(faiss_allrun)} 个Allrun脚本:")
     for i, result in enumerate(faiss_allrun):
@@ -259,4 +257,5 @@ def architect_node(state):
         "allrun_reference": allrun_reference,
         "subtasks": [{"file_name": subtask.file_name, "folder_name": subtask.folder_name} for subtask in subtasks],
         "mesh_type": mesh_type_value,
+        "file_dependency_flag": file_dependency_flag
     }
