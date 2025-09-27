@@ -12,9 +12,6 @@ You can visit https://deepwiki.com/csml-rpi/Foam-Agent for a comprehensive intro
 
 **Foam-Agent** is a multi-agent framework that automates the entire **OpenFOAM**-based CFD simulation workflow from a single natural language prompt. By managing the full pipeline—from meshing and case setup to execution and post-processing—Foam-Agent dramatically lowers the expertise barrier for Computational Fluid Dynamics. Evaluated on [FoamBench](https://arxiv.org/abs/2509.20374) of 110 simulation tasks, our framework achieves an **88.2% success rate**, demonstrating how specialized multi-agent systems can democratize complex scientific computing.
 
-You can visit our project page at **[DeepWiki](https://deepwiki.com/csml-rpi/Foam-Agent)** for a comprehensive introduction and to ask questions interactively.
-
-
 ## Key Innovations
 
 Our framework introduces three key innovations:
