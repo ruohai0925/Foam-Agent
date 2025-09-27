@@ -4,15 +4,24 @@
   <img src="overview.png" alt="Foam-Agent System Architecture" width="600">
 </p>
 
+<p align="center">
+    <em>An End-to-End Composable Multi-Agent Framework for Automating CFD Simulation in OpenFOAM</em>
+</p>
+
 You can visit https://deepwiki.com/csml-rpi/Foam-Agent for a comprehensive introduction and to ask any questions interactively.
 
-## Introduction
-**Foam-Agent** is a multi-agent framework that automates complex OpenFOAM-based CFD simulation workflows from natural language inputs. By leveraging advanced AI techniques, Foam-Agent significantly lowers the expertise barrier for Computational Fluid Dynamics while maintaining modeling accuracy.
+**Foam-Agent** is a multi-agent framework that automates the entire **OpenFOAM**-based CFD simulation workflow from a single natural language prompt. By managing the full pipeline—from meshing and case setup to execution and post-processing—Foam-Agent dramatically lowers the expertise barrier for Computational Fluid Dynamics. Evaluated on [FoamBench](https://arxiv.org/abs/2509.20374) of 110 simulation tasks, our framework achieves an **88.2% success rate**, demonstrating how specialized multi-agent systems can democratize complex scientific computing.
 
-Our framework offers three key innovations:
-- **Hierarchical multi-index retrieval system** with specialized indices for different simulation aspects
-- **Dependency-aware file generation system** ensuring consistency across configuration files
-- **Iterative error correction mechanism** that diagnoses and resolves simulation failures without human intervention
+You can visit our project page at **[DeepWiki](https://deepwiki.com/csml-rpi/Foam-Agent)** for a comprehensive introduction and to ask questions interactively.
+
+
+## Key Innovations
+
+Our framework introduces three key innovations:
+
+* **End-to-End Simulation Automation**: Foam-Agent manages the full simulation pipeline, including advanced pre-processing with a versatile Meshing Agent that handles external mesh files and generates new geometries via **Gmsh**, automatic generation of HPC submission scripts, and post-simulation visualization via **ParaView/PyVista**.
+* **High-Fidelity Configuration**: We use a Retrieval-Augmented Generation (RAG) system based on a hierarchical index of case metadata. Generation proceeds in a dependency-aware order, ensuring consistency and accuracy across all configuration files.
+* **Composable Service Architecture**: The framework exposes its core functions as discrete, callable tools using a Model Context Protocol (MCP). This allows for flexible integration with other agentic systems for more complex or exploratory workflows. Code will be released soon.
 
 ## Features
 ### 🔍 **Enhanced Retrieval System**
@@ -54,7 +63,7 @@ python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --pro
 git clone https://github.com/csml-rpi/Foam-Agent.git
 cd Foam-Agent
 git checkout v1.0.0
-conda env create -f environment.yml
+conda env create -n openfoamAgent -f environment.yml
 conda activate openfoamAgent
 ```
 
@@ -148,4 +157,19 @@ If you use Foam-Agent in your research, please cite our paper:
   journal={arXiv preprint arXiv:2505.04997},
   year={2025}
 }
+
+@article{yue2025foamagent,
+  title={Foam-Agent 2.0: An End-to-End Composable Multi-Agent Framework for Automating CFD Simulation in OpenFOAM},
+  author={Yue, Ling and Somasekharan, Nithin and Zhang, Tingwen and Cao, Yadi and Pan, Shaowu},
+  journal={arXiv preprint arXiv:2509.18178},
+  year={2025}
+}
+
+@article{somasekharan2025cfdllmbench,
+  title={CFD-LLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
+  author={Nithin Somasekharan, Ling Yue, Yadi Cao, Weichao Li, Patrick Emami, Pochinapeddi Sai Bhargav, Anurag Acharya, Xingyu Xie, Shaowu Pan},
+  journal={arXiv preprint arXiv:2509.20374},
+  year={2025}
+}
+
 ```
