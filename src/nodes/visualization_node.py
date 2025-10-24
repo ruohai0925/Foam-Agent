@@ -5,6 +5,7 @@ import sys
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from utils import save_file
+from services.visualization import ensure_foam_file, generate_pyvista_script, run_pyvista_script, fix_pyvista_script
 import glob
 
 # Helper to get the .foam file name
@@ -84,11 +85,8 @@ def visualization_node(state):
             "pyvista_visualization": {"success": False, "error": f"Case directory does not exist: {case_dir}"}
         }
     
-    # Touch the .foam file before generating the visualization script
-    foam_file = get_foam_file(case_dir)
-    foam_file_path = os.path.join(case_dir, foam_file)
-    with open(foam_file_path, 'a'):
-        os.utime(foam_file_path, None)
+    # Ensure .foam file exists
+    foam_file = ensure_foam_file(case_dir)
     
     # Initialize loop counter
     current_loop = 0
@@ -100,44 +98,67 @@ def visualization_node(state):
         print(f"Attempt {current_loop} of {max_loop}")
         
         # Create visualization script
-        viz_prompt = (
-            f"<case_directory>{case_dir}</case_directory>\n"
-            f"<foam_file>{foam_file}</foam_file>\n"
-            f"<visualization_requirements>{state['user_requirement']}</visualization_requirements>\n"
-            f"<previous_errors>{error_logs}</previous_errors>\n"
-            f"Please create a PyVista Python script that visualizes the specified data by reading the .foam file ('{foam_file}')."
-            "Save the visualization as PNG file named visualization.png if not specified otherwise in the user requirement."
-        )
-        
-        viz_script = state["llm_service"].invoke(viz_prompt, VISUALIZATION_SYSTEM_PROMPT)
-        
-        # Save the visualization script
-        script_path = os.path.join(case_dir, "visualization.py")
-        save_file(script_path, viz_script)
-        
-        # Execute the script using Python
-        try:
-            result = subprocess.run(
-                [sys.executable, script_path],
-                cwd=case_dir,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            print(f"Finished command: Return Code {result.returncode}")
+        viz_script = generate_pyvista_script(state["llm_service"], case_dir, foam_file, state['user_requirement'], error_logs)
+        success, output_image, errs = run_pyvista_script(case_dir, viz_script)
+        if success and output_image:
             error_logs = []
+            print(f"PyVista visualization created successfully: {output_image}")
             
-            # Check if any PNG output image was created
-            png_files = glob.glob(os.path.join(case_dir, "*.png"))
-            if png_files:
-                output_image = png_files[0]  # Use the first PNG file found
+            # Create plot configs and outputs in the expected format
+            plot_configs = [
+                {
+                    "plot_type": "pyvista_2d",
+                    "field_name": "U",  # Default field, could be enhanced to detect from script
+                    "time_step": "latest",
+                    "output_format": "png",
+                    "output_path": output_image
+                }
+            ]
+            
+            plot_outputs = [output_image]
+            
+            visualization_summary = {
+                "total_plots_generated": len(plot_outputs),
+                "plot_types": ["pyvista_2d"],
+                "fields_visualized": ["U"],
+                "output_directory": case_dir,
+                "pyvista_success": True
+            }
+            
+            pyvista_result = {
+                "success": True,
+                "output_image": output_image,
+                "script": viz_script
+            }
+            
+            print(f"Generated {len(plot_outputs)} plots")
+            print(f"PyVista visualization saved to: {output_image}")
+            print("============================== Visualization Complete ==============================")
+            
+            return {
+                **state,
+                "plot_configs": plot_configs,
+                "plot_outputs": plot_outputs,
+                "visualization_summary": visualization_summary,
+                "pyvista_visualization": pyvista_result
+            }
+        else:
+            error_logs.extend(errs)
+        
+        # If we have errors and haven't reached max loops, try to fix them
+        if error_logs and current_loop < max_loop:
+            fixed_script = fix_pyvista_script(state["llm_service"], foam_file, viz_script, error_logs)
+            success, output_image, errs = run_pyvista_script(case_dir, fixed_script, filename="visualization.py")
+            if success and output_image:
+                print(f"Finished command: Return Code 0")
+                error_logs = []
                 print(f"PyVista visualization created successfully: {output_image}")
                 
                 # Create plot configs and outputs in the expected format
                 plot_configs = [
                     {
-                        "plot_type": "pyvista_2d",
-                        "field_name": "U",  # Default field, could be enhanced to detect from script
+                        "plot_type": "pyvista_3d",
+                        "field_name": "U",
                         "time_step": "latest",
                         "output_format": "png",
                         "output_path": output_image
@@ -148,7 +169,7 @@ def visualization_node(state):
                 
                 visualization_summary = {
                     "total_plots_generated": len(plot_outputs),
-                    "plot_types": ["pyvista_2d"],
+                    "plot_types": ["pyvista_3d"],
                     "fields_visualized": ["U"],
                     "output_directory": case_dir,
                     "pyvista_success": True
@@ -157,7 +178,7 @@ def visualization_node(state):
                 pyvista_result = {
                     "success": True,
                     "output_image": output_image,
-                    "script": viz_script
+                    "script": fixed_script
                 }
                 
                 print(f"Generated {len(plot_outputs)} plots")
@@ -172,97 +193,7 @@ def visualization_node(state):
                     "pyvista_visualization": pyvista_result
                 }
             else:
-                error_logs.append("Visualization script executed but no PNG output image was created")
-                
-        except subprocess.CalledProcessError as e:
-            error_message = f"Error executing visualization script: {str(e)}"
-            if e.stdout:
-                error_message += f"\nSTDOUT:\n{e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout}"
-            if e.stderr:
-                error_message += f"\nSTDERR:\n{e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}"
-            error_logs.append(error_message)
-        
-        # If we have errors and haven't reached max loops, try to fix them
-        if error_logs and current_loop < max_loop:
-            error_fix_prompt = (
-                f"<error_logs>{error_logs}</error_logs>\n"
-                f"<foam_file>{foam_file}</foam_file>\n"
-                f"<original_script>{viz_script}</original_script>\n"
-                f"<attempt_number>{current_loop}</attempt_number>\n"
-                f"Please fix the PyVista Python script based on the error messages. The script should read the .foam file ('{foam_file}') in the case directory."
-            )
-            
-            fixed_script = state["llm_service"].invoke(error_fix_prompt, ERROR_FIX_SYSTEM_PROMPT)
-            
-            # Save the fixed script
-            save_file(script_path, fixed_script)
-            
-            # Try executing the fixed script
-            try:
-                result = subprocess.run(
-                    [sys.executable, script_path],
-                    cwd=case_dir,
-                    check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-                print(f"Finished command: Return Code {result.returncode}")
-                error_logs = []
-                
-                # Check if any PNG output image was created
-                png_files = glob.glob(os.path.join(case_dir, "*.png"))
-                if png_files:
-                    output_image = png_files[0]  # Use the first PNG file found
-                    print(f"PyVista visualization created successfully: {output_image}")
-                    
-                    # Create plot configs and outputs in the expected format
-                    plot_configs = [
-                        {
-                            "plot_type": "pyvista_3d",
-                            "field_name": "U",  # Default field, could be enhanced to detect from script
-                            "time_step": "latest",
-                            "output_format": "png",
-                            "output_path": output_image
-                        }
-                    ]
-                    
-                    plot_outputs = [output_image]
-                    
-                    visualization_summary = {
-                        "total_plots_generated": len(plot_outputs),
-                        "plot_types": ["pyvista_3d"],
-                        "fields_visualized": ["U"],
-                        "output_directory": case_dir,
-                        "pyvista_success": True
-                    }
-                    
-                    pyvista_result = {
-                        "success": True,
-                        "output_image": output_image,
-                        "script": fixed_script
-                    }
-                    
-                    print(f"Generated {len(plot_outputs)} plots")
-                    print(f"PyVista visualization saved to: {output_image}")
-                    print("============================== Visualization Complete ==============================")
-                    
-                    return {
-                        **state,
-                        "plot_configs": plot_configs,
-                        "plot_outputs": plot_outputs,
-                        "visualization_summary": visualization_summary,
-                        "pyvista_visualization": pyvista_result
-                    }
-                else:
-                    error_logs.append("Fixed visualization script executed but no PNG output image was created")
-                    
-            except subprocess.CalledProcessError as e:
-                error_message = f"Error executing fixed visualization script: {str(e)}"
-                if e.stdout:
-                    error_message += f"\nSTDOUT:\n{e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout}"
-                if e.stderr:
-                    error_message += f"\nSTDERR:\n{e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}"
-                error_logs.append(error_message)
+                error_logs.extend(errs)
     
     # If we've exhausted all attempts
     if current_loop >= max_loop:

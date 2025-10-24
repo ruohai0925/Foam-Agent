@@ -1,6 +1,7 @@
 # reviewer_node.py
 from pydantic import BaseModel, Field
 from typing import List
+from services.review import review_error_logs
 
 REVIEWER_SYSTEM_PROMPT = (
     "You are an expert in OpenFOAM simulation and numerical modeling. "
@@ -23,52 +24,21 @@ def reviewer_node(state):
         print("No error to review.")
         return state
     
-    # Analysis the reason and give the method to fix the error.
-    if state.get("history_text") and state["history_text"]:
-        reviewer_user_prompt = (
-            f"<similar_case_reference>{state['tutorial_reference']}</similar_case_reference>\n"
-            f"<foamfiles>{str(state['foamfiles'])}</foamfiles>\n"
-            f"<current_error_logs>{state['error_logs']}</current_error_logs>\n"
-            f"<history>\n"
-            f"{chr(10).join(state['history_text'])}\n"
-            f"</history>\n\n"
-            f"<user_requirement>{state['user_requirement']}</user_requirement>\n\n"
-            f"I have modified the files according to your previous suggestions. If the error persists, please provide further guidance. Make sure your suggestions adhere to user requirements and do not contradict it. Also, please consider the previous attempts and try a different approach."
-        )
-    else:
-        reviewer_user_prompt = (
-            f"<similar_case_reference>{state['tutorial_reference']}</similar_case_reference>\n"
-            f"<foamfiles>{str(state['foamfiles'])}</foamfiles>\n"
-            f"<error_logs>{state['error_logs']}</error_logs>\n"
-            f"<user_requirement>{state['user_requirement']}</user_requirement>\n"
-            "Please review the error logs and provide guidance on how to resolve the reported errors. Make sure your suggestions adhere to user requirements and do not contradict it."
-        ) 
-    
-    review_response = state["llm_service"].invoke(reviewer_user_prompt, REVIEWER_SYSTEM_PROMPT)
-    review_content = review_response
-    
-    # Initialize history_text if it doesn't exist
-    if not state.get("history_text"):
-        history_text = []
-    else:
-        history_text = state["history_text"]
-        
-    # Add current attempt to history
-    current_attempt = [
-        f"<Attempt {len(history_text)//4 + 1}>\n"
-        f"<Error_Logs>\n{state['error_logs']}\n</Error_Logs>",
-        f"<Review_Analysis>\n{review_content}\n</Review_Analysis>",
-        f"</Attempt>\n"  # Closing tag for Attempt with empty line
-    ]
-    history_text.extend(current_attempt)
-    
+    # Stateless review via service
+    history_text = state.get("history_text") or []
+    review_content, updated_history = review_error_logs(
+        tutorial_reference=state.get('tutorial_reference', ''),
+        foamfiles=state.get('foamfiles'),
+        error_logs=state.get('error_logs'),
+        user_requirement=state.get('user_requirement', ''),
+        llm=state["llm_service"],
+        history_text=history_text,
+    )
+
     print(review_content)
 
-
-
-    # Return updated state with review analysis
     return {
-        "history_text": history_text,
+        "history_text": updated_history,
         "review_analysis": review_content,
         "loop_count": state.get("loop_count", 0) + 1,
         "input_writer_mode": "rewrite",

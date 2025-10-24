@@ -2,6 +2,12 @@
 import os
 import re
 from utils import save_file, retrieve_faiss, parse_directory_structure
+from services.architect import (
+    parse_requirement_to_case_info,
+    resolve_case_dir,
+    retrieve_references,
+    decompose_to_subtasks,
+)
 from pydantic import BaseModel, Field
 from typing import List
 import shutil
@@ -32,35 +38,20 @@ def architect_node(state):
     config = state["config"]
     user_requirement = state["user_requirement"]
 
-    # Step 1: Translate user requirement.
-    parse_system_prompt = ("Please transform the following user requirement into a standard case description using a structured format."
-                           "The key elements should include case name, case domain, case category, and case solver."
-                           f"Note: case domain must be one of {state['case_stats']['case_domain']}."
-                           f"Note: case category must be one of {state['case_stats']['case_category']}."
-                           f"Note: case solver must be one of {state['case_stats']['case_solver']}."
-                           )
-    parse_user_prompt = f"User requirement: {user_requirement}."
-    
-    parse_response = state["llm_service"].invoke(parse_user_prompt, parse_system_prompt, pydantic_obj=CaseSummaryPydantic)
-    
-    case_name = parse_response.case_name.replace(" ", "_")
-    case_domain = parse_response.case_domain
-    case_category = parse_response.case_category
-    case_solver = parse_response.case_solver
+    # Step 1: Translate user requirement (service)
+    info = parse_requirement_to_case_info(user_requirement, state["case_stats"], state["llm_service"])
+    case_name = info["case_name"]
+    case_domain = info["case_domain"]
+    case_category = info["case_category"]
+    case_solver = info["case_solver"]
     
     print(f"Parsed case name: {case_name}")
     print(f"Parsed case domain: {case_domain}")
     print(f"Parsed case category: {case_category}")
     print(f"Parsed case solver: {case_solver}")
     
-    # Step 2: Determine case directory.
-    if config.case_dir != "":
-        case_dir = config.case_dir
-    else:
-        if config.run_times > 1:
-            case_dir = os.path.join(config.run_directory, f"{case_name}_{config.run_times}")
-        else:
-            case_dir = os.path.join(config.run_directory, case_name)
+    # Step 2: Determine case directory (service)
+    case_dir = resolve_case_dir(config, case_name)
     
     if os.path.exists(case_dir):
         print(f"Warning: Case directory {case_dir} already exists. Overwriting.")
@@ -70,40 +61,12 @@ def architect_node(state):
     
     print(f"Created case directory: {case_dir}")
 
-    # Step 3: Retrieve a similar reference case from the FAISS databases.
-    # Retrieve by case info
-    case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
-    
-    faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=config.searchdocs)
-    faiss_structure = faiss_structure[0]['full_content']
-    faiss_structure = re.sub(r"\n{3}", '\n', faiss_structure) # remove extra newlines
-    
-    # Retrieve by case info + directory structure
-    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=config.searchdocs)
-    faiss_detailed = faiss_detailed[0]['full_content']
-
-    # If the similar case is too long, skip file-dependency to reduce the LLM context length.
-    # Default `file_dependency_threshold=3000` in `src/config.py`
-    file_dependency_flag = state["file_dependency_flag"]
-    if (faiss_detailed.count('\n') < config.file_dependency_threshold):
-        print("File-dependency will be used by input writer.")
-    else:
-        file_dependency_flag = False
-        print("No file-dependency in input writer.")
-    
-    dir_structure = re.search(r"<directory_structure>(.*?)</directory_structure>", faiss_detailed, re.DOTALL).group(1).strip()
+    # Step 3: Retrieve references (service)
+    faiss_detailed, dir_structure, dir_counts_str, allrun_reference, file_dependency_flag = retrieve_references(
+        case_name, case_solver, case_domain, case_category, config, state["llm_service"]
+    )
     print(f"Retrieved similar case structure: {dir_structure}")
-    
-    dir_counts = parse_directory_structure(dir_structure)
-    dir_counts_str = ',\n'.join([f"There are {count} files in Directory: {directory}" for directory, count in dir_counts.items()])
     print(dir_counts_str)
-    
-    # Retrieve a reference Allrun script from the FAISS "Allrun" database.
-    index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>"
-    faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", index_content, topk=config.searchdocs)
-    allrun_reference = "Similar cases are ordered, with smaller numbers indicating greater similarity. For example, similar_case_1 is more similar than similar_case_2, and similar_case_2 is more similar than similar_case_3.\n"
-    for idx, item in enumerate(faiss_allrun):
-        allrun_reference += f"<similar_case_{idx + 1}>{item['full_content']}</similar_case_{idx + 1}>\n\n\n"
     
     case_path = os.path.join(case_dir, "similar_case.txt")
     
@@ -115,45 +78,14 @@ def architect_node(state):
     save_file(case_path, f"{faiss_detailed}\n\n\n{allrun_reference}")
         
 
-    # Step 4: Break down the work into smaller, manageable subtasks.
-    decompose_system_prompt = (
-        "You are an experienced Planner specializing in OpenFOAM projects. "
-        "Your task is to break down the following user requirement into a series of smaller, manageable subtasks. "
-        "For each subtask, identify the file name of the OpenFOAM input file (foamfile) and the corresponding folder name where it should be stored. "
-        "Your final output must strictly follow the JSON schema below and include no additional keys or information:\n\n"
-        "```\n"
-        "{\n"
-        "  \"subtasks\": [\n"
-        "    {\n"
-        "      \"file_name\": \"<string>\",\n"
-        "      \"folder_name\": \"<string>\"\n"
-        "    }\n"
-        "    // ... more subtasks\n"
-        "  ]\n"
-        "}\n"
-        "```\n\n"
-        "Make sure that your output is valid JSON and strictly adheres to the provided schema."
-        "Make sure you generate all the necessary files for the user's requirements."
-    )
+    # Step 4: Break down into subtasks (service)
+    subtasks = decompose_to_subtasks(user_requirement, dir_structure, dir_counts_str, state["llm_service"])
 
-    decompose_user_prompt = (
-        f"User Requirement: {user_requirement}\n\n"
-        f"Reference Directory Structure (similar case): {dir_structure}\n\n{dir_counts_str}\n\n"        
-        "Make sure you generate all the necessary files for the user's requirements."
-        "Do not include any gmsh files like .geo etc. in the subtasks."
-        "Only include blockMesh or snappyHexMesh if the user hasnt requested for gmsh mesh or user isnt using an external uploaded custom mesh"
-        "Please generate the output as structured JSON."
-    )
-    
-    decompose_resposne = state["llm_service"].invoke(decompose_user_prompt, decompose_system_prompt, pydantic_obj=OpenFOAMPlanPydantic)
-
-    if len(decompose_resposne.subtasks) == 0:
+    if len(subtasks) == 0:
         print("Failed to generate subtasks.")
         raise ValueError("Failed to generate subtasks.")
 
-    print(f"Generated {len(decompose_resposne.subtasks)} subtasks.")
-
-    subtasks = decompose_resposne.subtasks
+    print(f"Generated {len(subtasks)} subtasks.")
 
     mesh_type = llm_requires_custom_mesh(state)
     if mesh_type == 1:
@@ -169,6 +101,7 @@ def architect_node(state):
     print(f"Architect set mesh_type to: {mesh_type_value}")
 
     # Return updated state
+    case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
     return {
         "case_name": case_name,
         "case_domain": case_domain,
@@ -180,7 +113,7 @@ def architect_node(state):
         "dir_structure_reference": dir_structure_reference,
         "case_info": case_info,
         "allrun_reference": allrun_reference,
-        "subtasks": [{"file_name": subtask.file_name, "folder_name": subtask.folder_name} for subtask in subtasks],
+        "subtasks": subtasks,
         "mesh_type": mesh_type_value,
         "file_dependency_flag": file_dependency_flag
     }
