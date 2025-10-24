@@ -7,6 +7,7 @@ from utils import (
     save_file, remove_files, remove_file,
     run_command, check_foam_errors, retrieve_faiss, remove_numeric_folders
 )
+from services.run_local import run_allrun_and_collect_errors
 
 
 def local_runner_node(state):
@@ -20,19 +21,8 @@ def local_runner_node(state):
     
     print(f"============================== Runner ==============================")
     
-    # Clean up any previous log and error files.
-    out_file = os.path.join(case_dir, "Allrun.out")
-    err_file = os.path.join(case_dir, "Allrun.err")
-    remove_files(case_dir, prefix="log")
-    remove_file(err_file)
-    remove_file(out_file)
-    remove_numeric_folders(case_dir)
-    
-    # Execute the Allrun script.
-    run_command(allrun_file_path, out_file, err_file, case_dir, config)
-    
-    # Check for errors.
-    error_logs = check_foam_errors(case_dir)
+    # Execute using service and collect errors
+    error_logs = run_allrun_and_collect_errors(case_dir, config)
 
     if len(error_logs) > 0:
         print("Errors detected in the Allrun execution.")

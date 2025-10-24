@@ -9,6 +9,14 @@ from utils import (
     save_file, remove_files, remove_file,
     run_command, check_foam_errors, retrieve_faiss, remove_numeric_folders
 )
+from services.run_hpc import (
+    extract_cluster_info_from_requirement,
+    generate_hpc_script,
+    run_simulation_hpc,
+    wait_for_job,
+    check_logs_for_errors,
+    create_slurm_script_with_error_context,
+)
 
 
 def extract_cluster_info(state) -> dict:
@@ -352,9 +360,9 @@ def hpc_runner_node(state):
     remove_file(out_file)
     remove_numeric_folders(case_dir)
     
-    # Extract cluster information from user requirement
+    # Extract cluster information using service
     print("Extracting cluster information from user requirement...")
-    cluster_info = extract_cluster_info(state)
+    cluster_info = extract_cluster_info_from_requirement(state["user_requirement"], case_dir, state["llm_service"])
     print(f"Cluster info extracted: {cluster_info}")
     
     # Submit the job with retry logic
@@ -362,25 +370,27 @@ def hpc_runner_node(state):
         current_attempt += 1
         print(f"Attempt {current_attempt}/{max_loop}: Creating and submitting SLURM job...")
         
-        # Create SLURM script (regenerate on retry with error context)
+        # Create SLURM script
         if current_attempt == 1:
             print("Creating initial SLURM script...")
-            script_path = create_slurm_script(case_dir, cluster_info, state)
+            script_path = generate_hpc_script({"case_id": "n/a", "hpc_config": cluster_info}, state["llm_service"], case_dir).script_path
         else:
             print(f"Regenerating SLURM script based on previous error...")
-            # Read the previous failed script content
-            previous_script_content = ""
             try:
                 with open(script_path, 'r') as f:
-                    previous_script_content = f.read()
-            except Exception as e:
-                print(f"Warning: Could not read previous script: {e}")
-            
-            script_path = create_slurm_script_with_error_context(case_dir, cluster_info, state, last_error_msg, previous_script_content)
+                    prev = f.read()
+            except Exception:
+                prev = ""
+            # Use service helper for regeneration
+            script_path = create_slurm_script_with_error_context(case_dir, cluster_info, state["llm_service"], last_error_msg, prev)
         
         print(f"SLURM script created at: {script_path}")
         
-        job_id, success, error_msg = submit_slurm_job(script_path)
+        # Submit via service
+        run_out = run_simulation_hpc(script_path)
+        job_id = run_out.job_id
+        success = run_out.status == "submitted"
+        error_msg = "" if success else run_out.status
         
         if success:
             print(f"Job submitted successfully with ID: {job_id}")
@@ -403,47 +413,23 @@ def hpc_runner_node(state):
                     "slurm_script_path": script_path
                 }
     
-    # Wait for job completion
+    # Wait for job completion via service
     print("Waiting for job completion...")
-    import time
-    max_wait_time = 3600  # 1 hour timeout
-    wait_interval = 30    # Check every 30 seconds
-    elapsed_time = 0
-    
-    while elapsed_time < max_wait_time:
-        status, status_success, status_error = check_job_status(job_id)
-        
-        if not status_success:
-            print(f"Failed to check job status: {status_error}")
-            error_logs = [f"Status check failed: {status_error}"]
-            return {
-                **state,
-                "error_logs": error_logs,
-                "job_id": job_id,
-                "cluster_info": cluster_info,
-                "slurm_script_path": script_path
-            }
-        
-        print(f"Job status: {status}")
-        
-        # Check if job is completed (either successfully or with error)
-        if status in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"]:
-            print(f"Job finished with status: {status}")
-            break
-        
-        # Wait before checking again
-        time.sleep(wait_interval)
-        elapsed_time += wait_interval
-        
-        if elapsed_time % 300 == 0:  # Print progress every 5 minutes
-            print(f"Still waiting... ({elapsed_time//60} minutes elapsed)")
-    
-    if elapsed_time >= max_wait_time:
-        print("Job timeout reached. Assuming job completed.")
+    status, status_success, status_error = wait_for_job(job_id)
+    if not status_success:
+        error_logs = [f"Status check failed: {status_error}"]
+        return {
+            **state,
+            "error_logs": error_logs,
+            "job_id": job_id,
+            "cluster_info": cluster_info,
+            "slurm_script_path": script_path
+        }
+    print(f"Job finished with status: {status}")
     
     # Check for errors in log files (similar to local_runner)
     print("Checking for errors in log files...")
-    error_logs = check_foam_errors(case_dir)
+    error_logs = check_logs_for_errors(case_dir)
     
     if len(error_logs) > 0:
         print("Errors detected in the HPC Allrun execution.")
