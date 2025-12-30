@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -12,8 +12,11 @@ class CreateCaseOut(BaseModel):
     case_dir: str
 
 
+# NOTE: These models are deprecated and replaced by FastMCP server models in src/mcp/fastmcp_server.py
+# Use PlanRequest/PlanResponse and GenerateFilesRequest/GenerateFilesResponse instead
 class PlanIn(BaseModel):
-    case_id: str
+    """Deprecated: Use PlanRequest in fastmcp_server.py instead."""
+    case_id: str  # Deprecated: case_id is no longer required, use user_requirement only
 
 
 class Subtask(BaseModel):
@@ -22,12 +25,14 @@ class Subtask(BaseModel):
 
 
 class PlanOut(BaseModel):
+    """Deprecated: Use PlanResponse in fastmcp_server.py instead."""
     plan: List[Subtask]
-    case_info: Dict
+    case_info: Dict  # Deprecated: case_info is now expanded to case_name, case_solver, case_domain, case_category
 
 
 class GenerateFileIn(BaseModel):
-    case_id: str
+    """Deprecated: Use GenerateFilesRequest in fastmcp_server.py instead."""
+    case_id: str  # Deprecated: use case_name instead
     file: str
     folder: str
     write: bool = True
@@ -88,23 +93,21 @@ class LogsOut(BaseModel):
     logs: Dict[str, str]
 
 
-class ReviewIn(BaseModel):
-    case_id: str
-    logs: Dict
-
-
-class ReviewOut(BaseModel):
-    suggestions: Dict
-
-
 class ApplyFixIn(BaseModel):
     case_id: str
-    modifications: List[Dict]
+    foamfiles: Optional[Any] = None  # FoamPydantic object
+    error_logs: List[str] = []
+    review_analysis: str = ""
+    user_requirement: str = ""
+    dir_structure: Optional[Dict] = None
 
 
 class ApplyFixOut(BaseModel):
     status: str
     written: List[str]
+    updated_dir_structure: Optional[Dict] = None
+    updated_foamfiles: Optional[Any] = None  # FoamPydantic object
+    cleared_error_logs: List[str] = []
 
 
 class VisualizationIn(BaseModel):
