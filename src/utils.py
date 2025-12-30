@@ -2,7 +2,7 @@
 import re
 import subprocess
 import os
-from typing import Optional, Any, Type, TypedDict, List
+from typing import Optional, Any, Type, TypedDict, List, Dict
 from pydantic import BaseModel, Field
 from langchain.chat_models import init_chat_model
 from langchain_community.vectorstores import FAISS
@@ -98,6 +98,66 @@ class LLMService:
         else:
             raise ValueError(f"{self.model_provider} is not a supported model_provider")
     
+    def _is_throttling_error(self, error: Exception) -> bool:
+        """
+        Check if an exception is a throttling-related error.
+        
+        Args:
+            error: The exception to check
+            
+        Returns:
+            True if it's a throttling error, False otherwise
+        """
+        # Check ClientError with specific error codes
+        if isinstance(error, ClientError):
+            error_code = error.response.get('Error', {}).get('Code', '')
+            return error_code in ('Throttling', 'TooManyRequestsException', 'ThrottlingException')
+        
+        # Check for ThrottlingException and throttling-related error messages
+        error_type = type(error).__name__
+        error_str = str(error)
+        
+        throttling_indicators = (
+            error_type == 'ThrottlingException',
+            'ThrottlingException' in error_str,
+            'Too many tokens' in error_str,
+            'reached max retries' in error_str
+        )
+        
+        return any(throttling_indicators)
+    
+    def _handle_throttling_retry(self, error: Exception, retry_count: int, max_retries: int) -> Optional[int]:
+        """
+        Handle throttling error by implementing exponential backoff retry logic.
+        
+        Args:
+            error: The throttling exception
+            retry_count: Current retry attempt number
+            max_retries: Maximum number of retries allowed
+            
+        Returns:
+            The updated retry count if retry should continue, None if max retries exceeded
+        """
+        retry_count += 1
+        self.retry_count += 1
+        
+        if retry_count > max_retries:
+
+            print(f"Maximum retries ({max_retries}) exceeded: {str(error)}")
+            return None
+        
+        # Exponential backoff with jitter
+        base_delay = 1.0
+        max_delay = 60.0
+        delay = min(max_delay, base_delay * (2 ** (retry_count - 1)))
+        jitter = random.uniform(0, 0.1 * delay)
+        sleep_time = delay + jitter
+        
+        print(f"ThrottlingException occurred: {str(error)}. Retrying in {sleep_time:.2f} seconds (attempt {retry_count}/{max_retries})")
+        time.sleep(sleep_time)
+        
+        return retry_count
+    
     def invoke(self, 
               user_prompt: str, 
               system_prompt: Optional[str] = None, 
@@ -156,29 +216,25 @@ class LLMService:
                 
                 return response
                 
-            except ClientError as e:
-                if e.response['Error']['Code'] == 'Throttling' or e.response['Error']['Code'] == 'TooManyRequestsException':
-                    retry_count += 1
-                    self.retry_count += 1
-                    
-                    if retry_count > max_retries:
+            except Exception as e:
+                if self._is_throttling_error(e):
+                    print(f"ThrottlingException occurred: {str(e)}.")
+                    print(f"Retrying: {retry_count + 1}/{max_retries}")
+                    retry_count = self._handle_throttling_retry(e, retry_count, max_retries)
+                    if retry_count is None:
+                        # Max retries exceeded
                         self.failed_calls += 1
-                        raise Exception(f"Maximum retries ({max_retries}) exceeded: {str(e)}")
-                    
-                    base_delay = 1.0
-                    max_delay = 60.0
-                    delay = min(max_delay, base_delay * (2 ** (retry_count - 1)))
-                    jitter = random.uniform(0, 0.1 * delay)
-                    sleep_time = delay + jitter
-                    
-                    print(f"ThrottlingException occurred: {str(e)}. Retrying in {sleep_time:.2f} seconds (attempt {retry_count}/{max_retries})")
-                    time.sleep(sleep_time)
+                        raise Exception(f"Maximum retries ({max_retries}) exceeded for throttling error: {str(e)}")
+                    continue  # Retry the request
                 else:
+                    print(f"Non-throttling error occurred: {str(e)}.")
+
+                    # Non-throttling error: log and raise
+                    print(f"Error occurred in LLM service: {str(e)}")
+                    if isinstance(e, ClientError):
+                        print(e.response)
                     self.failed_calls += 1
                     raise e
-            except Exception as e:
-                self.failed_calls += 1
-                raise e
     
     def get_statistics(self) -> dict:
         """
@@ -316,12 +372,109 @@ def remove_numeric_folders(case_dir: str) -> None:
                 # Not a numeric value, so we keep this folder
                 pass
 
-def run_command(script_path: str, out_file: str, err_file: str, working_dir: str, config : Config) -> None:
+
+def scan_case_directory(case_dir: str) -> Dict[str, List[str]]:
+    """
+    Scan an OpenFOAM case directory and return the directory structure.
+    
+    This function traverses the case directory one level deep and collects
+    the files in each subdirectory (typically 'system', 'constant', '0', etc.).
+    
+    Args:
+        case_dir (str): Path to the OpenFOAM case directory
+    
+    Returns:
+        Dict[str, List[str]]: Dictionary mapping folder names to lists of file names
+            Example: {"system": ["controlDict", "fvSchemes"], "constant": ["transportProperties"]}
+    
+    Raises:
+        FileNotFoundError: If case_dir does not exist
+        PermissionError: If directory cannot be accessed
+    
+    Example:
+        >>> structure = scan_case_directory("/path/to/case")
+        >>> print(structure["system"])  # ["controlDict", "fvSchemes", "fvSolution"]
+    """
+    if not os.path.exists(case_dir):
+        raise FileNotFoundError(f"Case directory does not exist: {case_dir}")
+    
+    dir_structure = {}
+    base_depth = case_dir.rstrip(os.sep).count(os.sep)
+    
+    # Walk through the directory tree
+    for root, dirs, files in os.walk(case_dir):
+        # Only process directories one level below case_dir
+        current_depth = root.rstrip(os.sep).count(os.sep)
+        if current_depth == base_depth + 1:
+            folder_name = os.path.relpath(root, case_dir)
+            # Filter out hidden files and only include regular files
+            regular_files = [f for f in files if not f.startswith('.') and os.path.isfile(os.path.join(root, f))]
+            if regular_files:
+                dir_structure[folder_name] = regular_files
+    
+    return dir_structure
+
+
+def read_case_foamfiles(case_dir: str, dir_structure: Optional[Dict[str, List[str]]] = None) -> 'FoamPydantic':
+    """
+    Read OpenFOAM files from a case directory and convert to FoamPydantic format.
+    
+    This function reads all OpenFOAM configuration files from the case directory
+    (typically from 'system', 'constant', '0' folders) and creates a FoamPydantic
+    object containing the file contents.
+    
+    Args:
+        case_dir (str): Path to the OpenFOAM case directory
+        dir_structure (Optional[Dict[str, List[str]]]): Pre-scanned directory structure.
+            If None, will scan the directory automatically.
+    
+    Returns:
+        FoamPydantic: Object containing list of FoamfilePydantic objects with file metadata
+    
+    Raises:
+        FileNotFoundError: If case_dir does not exist
+        UnicodeDecodeError: If files contain invalid encoding (will skip those files)
+    
+    Example:
+        >>> foamfiles = read_case_foamfiles("/path/to/case")
+        >>> print(len(foamfiles.list_foamfile))  # Number of files read
+        >>> print(foamfiles.list_foamfile[0].file_name)  # "controlDict"
+    """
+    if not os.path.exists(case_dir):
+        raise FileNotFoundError(f"Case directory does not exist: {case_dir}")
+    
+    # Scan directory structure if not provided
+    if dir_structure is None:
+        dir_structure = scan_case_directory(case_dir)
+    
+    foamfile_list = []
+    
+    # Read files from each folder
+    for folder_name, file_names in dir_structure.items():
+        for file_name in file_names:
+            file_path = os.path.join(case_dir, folder_name, file_name)
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                foamfile_list.append(FoamfilePydantic(
+                    file_name=file_name,
+                    folder_name=folder_name,
+                    content=content
+                ))
+            except UnicodeDecodeError:
+                print(f"Warning: Skipping file due to encoding error: {file_path}")
+            except Exception as e:
+                print(f"Warning: Error reading file {file_path}: {e}")
+    
+    return FoamPydantic(list_foamfile=foamfile_list)
+
+def run_command(script_path: str, out_file: str, err_file: str, working_dir: str, max_time_limit: int) -> None:
     print(f"Executing script {script_path} in {working_dir}")
     os.chmod(script_path, 0o777)
     openfoam_dir = os.getenv("WM_PROJECT_DIR")
     command = f"source {openfoam_dir}/etc/bashrc && bash {os.path.abspath(script_path)}"
-    timeout_seconds = config.max_time_limit
 
     with open(out_file, 'w') as out, open(err_file, 'w') as err:
         process = subprocess.Popen(
@@ -337,7 +490,7 @@ def run_command(script_path: str, out_file: str, err_file: str, working_dir: str
         # err.write(stderr)
 
         try:
-            stdout, stderr = process.communicate(timeout=timeout_seconds)
+            stdout, stderr = process.communicate(timeout=max_time_limit)
             out.write(stdout)
             err.write(stderr)
         except subprocess.TimeoutExpired:
