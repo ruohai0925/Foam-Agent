@@ -1,8 +1,14 @@
 # Project
+*.pkl
+*.txt
 runs/
+database/faiss
+database/raw
 output/
+output*/
 benchmark/
 database/foamgpt/data
+useless/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -175,3 +181,23 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+learn_main.py
+Foam-Agent工作流程.md
+Foam-Agent程序运行逻辑图-打印版.md
+Foam-Agent程序运行逻辑图-打印版.pdf
+CLAUDE.md
+evaluation.md
+papers.md
+papers.html
+papers.pdf
+overvie.png
+
+database_old*/faiss
+database_old*/raw
+database_old*/foamgpt/data
+
+docker/
+Dockerfile
+docker-compose.yml
+.env
