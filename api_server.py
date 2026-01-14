@@ -39,7 +39,7 @@ app = FastAPI()
 # 1. 定义一个 "白名单" 列表，包含所有我们允许的来源
 #    请务必使用你 React 应用的真实访问地址
 origins = [
-    "https://cfdqanda.com"
+    "https://cfdqanda.com",
     "https://www.cfdqanda.com",   # 保留这个，上线后用
 
     # --- 新增：允许本地前端访问 ---
