@@ -13,6 +13,11 @@ from supabase import create_client, Client
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# --- 新增这两行 ---
+from dotenv import load_dotenv
+load_dotenv()  # 自动读取同目录下的 .env 文件
+# ------------------
+
 # 从环境变量加载 Supabase 配置
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")

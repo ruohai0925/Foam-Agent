@@ -1,5 +1,9 @@
 import os
 from fastapi import FastAPI, HTTPException
+# --- 新增这两行 ---
+from dotenv import load_dotenv
+load_dotenv()  # 自动读取同目录下的 .env 文件
+# ------------------
 from supabase import create_client, Client
 from pydantic import BaseModel
 import logging
@@ -35,9 +39,13 @@ app = FastAPI()
 # 1. 定义一个 "白名单" 列表，包含所有我们允许的来源
 #    请务必使用你 React 应用的真实访问地址
 origins = [
-    "http://159.89.201.220:5174/", # 你的 WSL 开发地址
-    # 未来你部署到 Vercel 后，还要添加你的域名
-    "https://www.cfdqanda.com"
+    "https://cfdqanda.com"
+    "https://www.cfdqanda.com",   # 保留这个，上线后用
+
+    # --- 新增：允许本地前端访问 ---
+    "http://localhost:5173",      # 对应 VITE_API_SERVER_URL=http://localhost:8000
+    "http://127.0.0.1:5173",
+    "http://172.28.101.38:5173",  # 你的 WSL IP，以防万一
 ]
 
 # 2. 将 CORS 中间件添加到我们的 FastAPI 应用中
@@ -157,82 +165,86 @@ async def get_file_tree(job_id: int):
         raise HTTPException(status_code=500, detail=f"An internal server error occurred: {str(e)}")
 
 
+# --- 修改 api_server.py 中的 submit_feedback 函数 ---
+
 @app.post("/api/v1/simulations/{job_id}/feedback")
 async def submit_feedback(job_id: int, request: FeedbackRequest):
     """
     提交文件反馈。
-    将反馈内容保存为文件，文件名格式：{原文件名}_feedback
-    保存到Storage的相同目录下。
+    1. [新增] 保存到本地 WSL 文件系统 (runs/{job_id}/...)
+    2. 上传到 Supabase Storage (云端备份)
     """
     try:
-        # 1. 验证任务是否存在，并验证用户权限
+        # 1. 验证任务是否存在
         response = supabase.table('simulations').select('*').eq('id', job_id).execute()
-        
         if not response.data:
             raise HTTPException(status_code=404, detail=f"Simulation {job_id} not found")
         
         job = response.data[0]
         
-        # 2. 验证用户权限：确保用户只能为自己的任务添加反馈
+        # 2. 验证权限
         if job['user_id'] != request.user_id:
-            raise HTTPException(
-                status_code=403,
-                detail="You do not have permission to add feedback for this simulation"
-            )
+            raise HTTPException(status_code=403, detail="Permission denied")
         
-        # 3. 验证反馈内容大小（5KB = 5120字节）
+        # 3. 验证大小 (限制 5KB)
         feedback_size = len(request.feedback_content.encode('utf-8'))
-        if feedback_size > 5120:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feedback content exceeds 5KB limit. Current size: {feedback_size} bytes"
-            )
+        if feedback_size > 5120 or feedback_size == 0:
+            raise HTTPException(status_code=400, detail="Invalid feedback size")
         
-        if feedback_size == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Feedback content cannot be empty"
-            )
-        
-        # 4. 构建反馈文件路径
-        # 原文件路径：如 "output/log.blockMesh"
-        # 反馈文件路径：如 "output/log.blockMesh_feedback"
+        # 4. 构建文件名
+        # 逻辑：原文件 "output/log.blockMesh" -> 反馈文件 "output/log.blockMesh_feedback"
         feedback_file_path = f"{request.file_path}_feedback"
         
-        # 5. 构建Storage路径
+        # ==========================================
+        # 🔥 [核心修改] 写入本地 WSL 文件系统
+        # ==========================================
+        try:
+            # 构造本地绝对路径
+            # 假设 api_server.py 在项目根目录，runs 文件夹也在根目录
+            # 路径变成: ./runs/{job_id}/{output/..._feedback}
+            local_file_path = os.path.join("runs", str(job_id), feedback_file_path)
+            
+            # 确保父目录存在 (防止报错)
+            os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+            
+            # 写入文件
+            with open(local_file_path, "w", encoding="utf-8") as f:
+                f.write(request.feedback_content)
+                
+            logger.info(f"✅ Feedback saved locally to: {local_file_path}")
+            
+        except Exception as local_error:
+            # 如果本地写入失败（比如权限问题），记录日志但不中断请求
+            logger.error(f"❌ Failed to write local feedback file: {local_error}")
+            # 如果你希望本地写入失败就直接报错，可以取消下面这行的注释
+            # raise HTTPException(status_code=500, detail=f"Local write failed: {local_error}")
+
+        # ==========================================
+        
+        # 5. 上传到 Supabase Storage (保持原有逻辑)
         storage_base_path = f"public/{request.user_id}/{job_id}"
         storage_feedback_path = f"{storage_base_path}/{feedback_file_path}"
         
-        # 6. 上传反馈文件到Storage
         try:
-            # 将反馈内容转换为字节
-            feedback_bytes = request.feedback_content.encode('utf-8')
-            
-            # 上传到Storage
             supabase.storage.from_("simulation_results").upload(
                 path=storage_feedback_path,
-                file=feedback_bytes,
-                file_options={"content-type": "text/plain", "upsert": "true"}  # upsert允许覆盖已存在的文件
+                file=request.feedback_content.encode('utf-8'),
+                file_options={"content-type": "text/plain", "upsert": "true"}
             )
-            
-            logger.info(f"Feedback submitted for job {job_id}, file: {request.file_path}")
-            
-            return {
-                "status": "success",
-                "message": "Feedback submitted successfully",
-                "feedback_path": storage_feedback_path,
-                "file_path": request.file_path
-            }
-            
+            logger.info(f"✅ Feedback uploaded to Supabase: {storage_feedback_path}")
         except Exception as storage_error:
-            logger.error(f"Failed to upload feedback to Storage: {storage_error}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to save feedback to storage: {str(storage_error)}"
-            )
+            logger.error(f"Storage upload failed: {storage_error}")
+            raise HTTPException(status_code=500, detail=f"Storage upload failed: {str(storage_error)}")
+            
+        return {
+            "status": "success",
+            "message": "Feedback submitted successfully (Local & Cloud)",
+            "local_path": local_file_path,
+            "cloud_path": storage_feedback_path
+        }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"An error occurred while submitting feedback for job {job_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"An internal server error occurred: {str(e)}")
+        logger.error(f"Error in submit_feedback: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
