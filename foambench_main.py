@@ -64,12 +64,6 @@ def main():
     args = parse_args()
     print(args)
 
-    # Check if OPENAI_API_KEY is available in the environment
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        print("Error: OPENAI_API_KEY is not set in the environment.")
-        sys.exit(1)
-
     # Create the output folder
     os.makedirs(args.output, exist_ok=True)
 
