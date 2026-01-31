@@ -18,17 +18,77 @@ from botocore.exceptions import ClientError
 import shutil
 from config import Config
 from langchain_ollama import ChatOllama
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ImportError:
+    HuggingFaceEmbeddings = None
+
 
 # Global dictionary to store loaded FAISS databases
 FAISS_DB_CACHE = {}
-DATABASE_DIR = f"{Path(__file__).resolve().parent.parent}/database/faiss"
 
-FAISS_DB_CACHE = {
-    "openfoam_allrun_scripts": FAISS.load_local(f"{DATABASE_DIR}/openfoam_allrun_scripts", OpenAIEmbeddings(model="text-embedding-3-small"), allow_dangerous_deserialization=True),
-    "openfoam_tutorials_structure": FAISS.load_local(f"{DATABASE_DIR}/openfoam_tutorials_structure", OpenAIEmbeddings(model="text-embedding-3-small"), allow_dangerous_deserialization=True),
-    "openfoam_tutorials_details": FAISS.load_local(f"{DATABASE_DIR}/openfoam_tutorials_details", OpenAIEmbeddings(model="text-embedding-3-small"), allow_dangerous_deserialization=True),
-    "openfoam_command_help": FAISS.load_local(f"{DATABASE_DIR}/openfoam_command_help", OpenAIEmbeddings(model="text-embedding-3-small"), allow_dangerous_deserialization=True)
-}
+def get_embedding_model():
+    provider = Config.embedding_provider.lower()
+    model = Config.embedding_model
+    
+    if provider == "openai":
+        return OpenAIEmbeddings(model=model)
+    elif provider == "huggingface":
+        if HuggingFaceEmbeddings is None:
+            raise ImportError("langchain-huggingface is not installed. Please install it to use HuggingFace embeddings.")
+        return HuggingFaceEmbeddings(model_name=model)
+    elif provider == "ollama":
+        # Assuming usage of OllamaEmbeddings which might be in langchain_ollama or langchain_community
+        from langchain_ollama import OllamaEmbeddings
+        return OllamaEmbeddings(model=model)
+    else:
+        raise ValueError(f"Unsupported embedding provider: {provider}")
+
+def load_faiss_dbs():
+    embedding_model = get_embedding_model()
+    model_name_sanitized = Config.embedding_model.replace("/", "_").replace("-", "_").lower()
+    
+    # If using default openai model, use legacy path for backward compatibility if new path doesn't exist
+    # OR strictly enforce new structure. 
+    # Plan says: "Load the corresponding FAISS index from the specific subdirectory"
+    
+    # We will assume the structure is: database/faiss/{model_name}/{index_name}
+    # But for backward compatibility with existing openai repo, we might need to check.
+    # The existing code had: f"{DATABASE_DIR}/openfoam_allrun_scripts" where DATABASE_DIR = .../database/faiss
+    
+    # Let's check if we should strictly use subdirectories. 
+    # To avoid breaking the existing setup immediately, I can check if the new path exists, else try legacy path.
+    
+    base_dir = Path(__file__).resolve().parent.parent / "database" / "faiss"
+    
+    # Sanitize model name for directory usage
+    model_dir_name = Config.embedding_model.replace("/", "_").replace(":", "_")
+    
+    db_path = base_dir / model_dir_name
+    
+    print(f"Loading FAISS indices from: {db_path} with model: {Config.embedding_model}")
+    
+    dbs = {}
+    indices = [
+        "openfoam_allrun_scripts", 
+        "openfoam_tutorials_structure", 
+        "openfoam_tutorials_details", 
+        "openfoam_command_help"
+    ]
+    
+    for index in indices:
+        index_path = db_path / index
+        if index_path.exists():
+            try:
+                dbs[index] = FAISS.load_local(str(index_path), embedding_model, allow_dangerous_deserialization=True)
+            except Exception as e:
+                print(f"Failed to load index {index}: {e}")
+        else:
+            print(f"Warning: Index path does not exist: {index_path}")
+            
+    return dbs
+
+FAISS_DB_CACHE = load_faiss_dbs()
 
 class FoamfilePydantic(BaseModel):
     file_name: str = Field(description="Name of the OpenFOAM input file")

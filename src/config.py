@@ -19,3 +19,6 @@ class Config:
     model_version: str = "gpt-5-mini"
     temperature: float = 1
     
+    # Embedding Configuration
+    embedding_provider: str = "openai" # [openai, huggingface, ollama]
+    embedding_model: str = "text-embedding-3-small" # e.g. "text-embedding-3-small", "Qwen/Qwen3-Embedding-0.6B"

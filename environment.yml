@@ -413,6 +413,7 @@ dependencies:
       - langchain-ollama==0.3.2
       - langchain-openai==0.2.14
       - langchain-text-splitters==0.3.6
+      - langchain-huggingface==0.1.2
       - langchain==0.3.18
       - langgraph-checkpoint==2.0.12
       - langgraph-sdk==0.1.51
