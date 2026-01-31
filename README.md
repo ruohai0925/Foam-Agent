@@ -303,8 +303,8 @@ You can also specify a custom mesh:
 ```bash
 python foambench_main.py \
   --output ./output \
-  --prompt_path ./user_requirement.txt \
-  --custom_mesh_path ./my_mesh.msh
+  --prompt_path ./user_req_tandem_wing.txt \
+  --custom_mesh_path ./tandem_wing.msh
 ```
 
 ### 5. Configuration and environment variables (summary)
