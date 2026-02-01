@@ -21,4 +21,4 @@ class Config:
     
     # Embedding Configuration
     embedding_provider: str = "openai" # [openai, huggingface, ollama]
-    embedding_model: str = "text-embedding-3-small" # e.g. "text-embedding-3-small", "Qwen/Qwen3-Embedding-0.6B"
+    embedding_model: str = "text-embedding-3-small" # e.g. "text-embedding-3-small", "text-embedding-3-large", "Qwen/Qwen3-Embedding-0.6B", "Qwen/Qwen3-Embedding-8B"
