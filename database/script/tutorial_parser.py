@@ -7,8 +7,13 @@ import re
 import json
 
 def read_files_into_dict(base_path, stats=None):
-    """
-    Reads files from the given base_path directory and stores their content in a dictionary.
+    """Read OpenFOAM tutorial case files.
+
+    Important: OpenFOAM cases often have *nested* region subfolders, e.g.
+      - 0/air, 0/porous
+      - constant/air, constant/porous
+      - system/air, system/porous
+    and they may contain duplicate filenames across regions (e.g. T, p).
     """
     if stats is None:
         stats = {
@@ -20,8 +25,8 @@ def read_files_into_dict(base_path, stats=None):
             "allrun_read_fail": 0
         }
 
-    file_contents, file_names, folder_names = {}, [], {}
-    base_depth = base_path.rstrip(os.sep).count(os.sep)
+    # Each entry: {"folder_name": <relative folder>, "file_name": <basename>, "content": <text>}
+    entries = []
 
     # Read 'Allrun' file
     allrun_path = os.path.join(base_path, "Allrun")
@@ -43,31 +48,40 @@ def read_files_into_dict(base_path, stats=None):
             print(f"Error reading file {allrun_path}: {e}")
             stats["allrun_read_fail"] += 1
 
-    # Traverse the base_path directory to read files
+    # Traverse the case directory recursively.
+    # Keep folder_name relative to the case root (base_path).
     for root, _, files in os.walk(base_path):
-        # Only read files one level below the base_path
-        if root.rstrip(os.sep).count(os.sep) == base_depth + 1:
-            for file in files:
-                file_path = os.path.join(root, file)
-                
-                stats["files_total_scanned"] += 1  # We are scanning this file
-                
-                try:
-                    with open(file_path, "r") as file_handle:
-                        lines = file_handle.readlines()
+        for file in files:
+            # Skip the Allrun file (already handled above)
+            if root == base_path and file == "Allrun":
+                continue
 
-                        file_contents[file] = "".join(lines)
-                        stats["files_read_success"] += 1
+            file_path = os.path.join(root, file)
+            rel_folder = os.path.relpath(root, base_path)
 
-                        folder_names[file] = os.path.relpath(root, base_path)
-                        file_names.append(file)
-                except UnicodeDecodeError:
-                    print(f"Skipping file due to encoding error: {file_path}")
-                    stats["files_skipped_encoding"] += 1
-                except Exception as e:
-                    print(f"Error reading file {file_path}: {e}")
-    
-    return allrun_content, file_contents, file_names, folder_names, stats
+            # Avoid sucking in huge decomposed meshes or processor dirs if present
+            # (tutorials shouldn't have them, but generated artifacts might).
+            if rel_folder.startswith("processor") or rel_folder.startswith("postProcessing"):
+                continue
+
+            stats["files_total_scanned"] += 1
+
+            try:
+                with open(file_path, "r") as file_handle:
+                    content = file_handle.read()
+                entries.append({
+                    "folder_name": rel_folder,
+                    "file_name": file,
+                    "content": content
+                })
+                stats["files_read_success"] += 1
+            except UnicodeDecodeError:
+                print(f"Skipping file due to encoding error: {file_path}")
+                stats["files_skipped_encoding"] += 1
+            except Exception as e:
+                print(f"Error reading file {file_path}: {e}")
+
+    return allrun_content, entries, stats
 
 
 def find_cases(root_dir):
@@ -104,7 +118,7 @@ def find_cases(root_dir):
             stats["directories_with_system"] += 1
 
             # Read files in the current directory (root)
-            allrun_content, file_contents, file_names, folder_names, file_stats = read_files_into_dict(root, stats={
+            allrun_content, entries, file_stats = read_files_into_dict(root, stats={
                 "files_total_scanned": 0,
                 "files_skipped_encoding": 0,
                 "files_skipped_large": 0,
@@ -165,6 +179,9 @@ def find_cases(root_dir):
                     domain, solver, category = path_components[0], path_components[1], path_components[2]
 
             # --- NEW LOGIC: Check for missing blockMeshDict and copy if referenced in Allrun ---
+            # (entries can include nested folders; entry_names is for quick checks)
+            entry_names = [e.get("file_name") for e in entries]
+
             system_dir = os.path.join(root, "system")
             blockmeshdict_path = os.path.join(system_dir, "blockMeshDict")
             if not os.path.isfile(blockmeshdict_path):
@@ -186,9 +203,12 @@ def find_cases(root_dir):
                                 with open(blockmeshdict_path, "w") as dst_f:
                                     dst_f.write(blockmesh_content)
                                 # Add to in-memory structures for output
-                                file_contents["blockMeshDict"] = blockmesh_content
-                                file_names.append("blockMeshDict")
-                                folder_names["blockMeshDict"] = "system"
+                                entries.append({
+                                    "folder_name": "system",
+                                    "file_name": "blockMeshDict",
+                                    "content": blockmesh_content
+                                })
+                                entry_names.append("blockMeshDict")
                                 print(f"[INFO] Copied {src_blockmeshdict} to {blockmeshdict_path} for case {case_name}")
                             except Exception as e:
                                 print(f"[WARNING] Failed to copy {src_blockmeshdict} to {blockmeshdict_path}: {e}")
@@ -206,9 +226,7 @@ def find_cases(root_dir):
                 "solver": solver,
                 "category": category,
                 "domain": domain,
-                "folder_names": folder_names,
-                "file_names": file_names,
-                "file_contents": file_contents,
+                "entries": entries,
                 "allrun": allrun_content
             })
     
@@ -256,12 +274,18 @@ def save_cases_to_file(cases, output_dir):
         case_index_text += f"case solver: {case_solver}\n"
         case_index_text += "</index>\n\n"
         
-        # Save the directory structure
+        # Save the directory structure (folder -> list of filenames)
         folder_file_dict = {}
-        for file_name, folder_name in case["folder_names"].items():
-            if folder_name not in folder_file_dict:
-                folder_file_dict[folder_name] = []
-            folder_file_dict[folder_name].append(file_name)
+        for ent in case.get("entries", []):
+            folder_name = ent.get("folder_name", "")
+            file_name = ent.get("file_name", "")
+            if not folder_name or not file_name:
+                continue
+            folder_file_dict.setdefault(folder_name, []).append(file_name)
+
+        # Deterministic ordering for stable diffs
+        for k in list(folder_file_dict.keys()):
+            folder_file_dict[k] = sorted(set(folder_file_dict[k]))
         
         dir_structure_text = "<directory_structure>\n"
         for folder_name, file_names in folder_file_dict.items():
@@ -292,9 +316,16 @@ def save_cases_to_file(cases, output_dir):
             tutorials_text += f"<directory_begin>directory name: {folder_name}\n"
             for file_name in file_names:
                 tutorials_text += f"<file_begin>file name: {file_name}\n"
-                
+
+                # Find the matching entry content (first match is fine; content should be identical per folder/file)
+                content = ""
+                for ent in case.get("entries", []):
+                    if ent.get("folder_name") == folder_name and ent.get("file_name") == file_name:
+                        content = ent.get("content", "")
+                        break
+
                 # Delete comments, such as license information, from the file contents
-                cleaned_text = re.sub(r'/\*.*?\*/', '', case['file_contents'][file_name], flags=re.DOTALL)
+                cleaned_text = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
                 cleaned_text = re.sub(r'//.*', '', cleaned_text)
 
                 tutorials_text += f"<file_content>{cleaned_text}</file_content>\n"
