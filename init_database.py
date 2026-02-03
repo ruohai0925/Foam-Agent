@@ -12,6 +12,11 @@ def parse_args():
         default=os.getenv("WM_PROJECT_DIR"),
         help="Path to OpenFOAM installation (WM_PROJECT_DIR)"
     )
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help="Force re-generate raw tutorial dumps + FAISS indices even if files exist"
+    )
     return parser.parse_args()
 
 def run_command(command_str):
@@ -55,20 +60,23 @@ def main():
 
     SCRIPTS = []
     
-    # Preprocess the OpenFOAM tutorials    
-    if not os.path.exists(f"{script_dir}/database/raw/openfoam_tutorials_details.txt"):
+    # Preprocess the OpenFOAM tutorials
+    if args.force or not os.path.exists(f"{script_dir}/database/raw/openfoam_tutorials_details.txt"):
         SCRIPTS.append(f"python database/script/tutorial_parser.py --output_dir=./database/raw --wm_project_dir={WM_PROJECT_DIR}")
-    if not os.path.exists(f"{script_dir}/database/faiss/openfoam_command_help"):
+
+    # (Re)build FAISS indices
+    if args.force or not os.path.exists(f"{script_dir}/database/faiss/openfoam_command_help"):
         SCRIPTS.append(f"python database/script/faiss_command_help.py --database_path=./database")
-    if not os.path.exists(f"{script_dir}/database/faiss/openfoam_allrun_scripts"):
+    if args.force or not os.path.exists(f"{script_dir}/database/faiss/openfoam_allrun_scripts"):
         SCRIPTS.append(f"python database/script/faiss_allrun_scripts.py --database_path=./database")
-    if not os.path.exists(f"{script_dir}/database/faiss/openfoam_tutorials_structure"):
+    if args.force or not os.path.exists(f"{script_dir}/database/faiss/openfoam_tutorials_structure"):
         SCRIPTS.append(f"python database/script/faiss_tutorials_structure.py --database_path=./database")
-    if not os.path.exists(f"{script_dir}/database/faiss/openfoam_tutorials_details"):
+    if args.force or not os.path.exists(f"{script_dir}/database/faiss/openfoam_tutorials_details"):
         SCRIPTS.append(f"python database/script/faiss_tutorials_details.py --database_path=./database")
-    
+
     if not SCRIPTS:
         print("All database files already exist. No initialization needed.")
+        print("Tip: pass --force to rebuild.")
         return
 
     print("Starting database initialization...")
