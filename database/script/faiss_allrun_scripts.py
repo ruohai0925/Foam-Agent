@@ -33,9 +33,27 @@ def main():
         help="Path to the database directory (default: '../../')",
     )
         
+    parser.add_argument(
+        "--embedding_provider",
+        type=str,
+        default="openai",
+        choices=["openai", "huggingface", "ollama"],
+        help="Embedding provider",
+    )
+    parser.add_argument(
+        "--embedding_model",
+        type=str,
+        default="text-embedding-3-small",
+        help="Embedding model name",
+    )
+        
     args = parser.parse_args()
     database_path = args.database_path
+    embedding_provider = args.embedding_provider
+    embedding_model = args.embedding_model
+    
     print(f"Database path: {database_path}")
+    print(f"Provider: {embedding_provider}, Model: {embedding_model}")
 
     # Step 2: Read the input file
     database_allrun_path = os.path.join(database_path, "raw/openfoam_allrun_scripts.txt")
@@ -92,11 +110,26 @@ def main():
         documents.append(doc)
 
     # Step 4: Compute embeddings and store in FAISS
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    if embedding_provider == "openai":
+        embeddings = OpenAIEmbeddings(model=embedding_model)
+    elif embedding_provider == "huggingface":
+        try:
+            from langchain_huggingface import HuggingFaceEmbeddings
+            embeddings = HuggingFaceEmbeddings(model_name=embedding_model)
+        except ImportError:
+             raise ImportError("Please install langchain-huggingface")
+    elif embedding_provider == "ollama":
+        from langchain_ollama import OllamaEmbeddings
+        embeddings = OllamaEmbeddings(model=embedding_model)
+    else:
+        raise ValueError(f"Unknown provider: {embedding_provider}")
+        
     vectordb = FAISS.from_documents(documents, embeddings)
 
     # Step 5: Save the FAISS index locally
-    persist_directory = os.path.join(database_path, "faiss/openfoam_allrun_scripts")
+    # Sanitize model name for directory
+    model_dir_name = embedding_model.replace("/", "_").replace(":", "_")
+    persist_directory = os.path.join(database_path, f"faiss/{model_dir_name}/openfoam_allrun_scripts")
     vectordb.save_local(persist_directory)
 
     print(f"{len(documents)} cases indexed successfully with metadata! Saved at: {persist_directory}")
