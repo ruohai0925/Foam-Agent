@@ -13,7 +13,10 @@ class Config:
     run_directory: str = Path(__file__).resolve().parent.parent / "runs"
     case_dir: str = ""
     max_time_limit: int = 3600 # Max time limit after which the openfoam run will be terminated, in seconds
-    file_dependency_threshold: int = 3000 # threshold length on the similar case; see `nodes/architect_node.py` for details
+    # Input writer generation mode:
+    # - "sequential_dependency": generate files sequentially; use already-generated files as context to enforce consistency.
+    # - "parallel_no_context": generate files in parallel without cross-file context (faster, may need more reviewer iterations).
+    input_writer_generation_mode: str = "parallel_no_context"
     model_provider: str = "openai"# [openai, ollama, bedrock]
     # model_version should be in ["gpt-5-mini", "deepseek-r1:32b-qwen-distill-fp16", "qwen2.5:32b-instruct"]
     model_version: str = "gpt-5-mini"
