@@ -127,8 +127,7 @@ def retrieve_references(case_name: str,
                         case_solver: str,
                         case_domain: str,
                         case_category: str,
-                        searchdocs: int = 2,
-                        file_dependency_threshold: int = 3000) -> Tuple[str, str, str, str, bool]:
+                        searchdocs: int = 2) -> Tuple[str, str, str, str]:
     # Build case_info
     case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
     faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=searchdocs)
@@ -136,10 +135,6 @@ def retrieve_references(case_name: str,
     faiss_structure = re.sub(r"\n{3}", '\n', faiss_structure)
     faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=searchdocs)
     faiss_detailed = faiss_detailed[0]['full_content']
-
-    file_dependency_flag = True
-    if (faiss_detailed.count('\n') >= file_dependency_threshold):
-        file_dependency_flag = False
 
     dir_structure = re.search(r"<directory_structure>(.*?)</directory_structure>", faiss_detailed, re.DOTALL).group(1).strip()
     dir_counts = parse_directory_structure(dir_structure)
@@ -152,7 +147,7 @@ def retrieve_references(case_name: str,
     for idx, item in enumerate(faiss_allrun):
         allrun_reference += f"<similar_case_{idx + 1}>{item['full_content']}</similar_case_{idx + 1}>\n\n\n"
 
-    return faiss_detailed, dir_structure, dir_counts_str, allrun_reference, file_dependency_flag
+    return faiss_detailed, dir_structure, dir_counts_str, allrun_reference
 
 
 def decompose_to_subtasks(user_requirement: str, dir_structure: str, dir_counts_str: str) -> List[Dict]:
@@ -183,8 +178,7 @@ def generate_simulation_plan(
     user_requirement: str,
     case_stats: Dict[str, List[str]],
     case_dir: str = "",
-    searchdocs: int = 2,
-    file_dependency_threshold: int = 3000
+    searchdocs: int = 2
 ) -> Dict[str, Any]:
     """
     Generate a complete simulation plan by parsing requirements and creating subtasks.
@@ -200,7 +194,6 @@ def generate_simulation_plan(
         case_stats (Dict[str, List[str]]): Available case statistics
         case_dir (str, optional): Custom case directory path
         searchdocs (int, optional): Number of similar documents to retrieve
-        file_dependency_threshold (int, optional): Threshold for file dependency flag
     
     Returns:
         Dict[str, Any]: Complete plan containing:
@@ -211,7 +204,6 @@ def generate_simulation_plan(
             - dir_structure_reference: Directory structure
             - allrun_reference: Allrun script references
             - subtasks: List of subtasks with file and folder names
-            - file_dependency_flag: Boolean flag for file dependencies
     
     Raises:
         ValueError: If subtasks cannot be generated
@@ -233,13 +225,12 @@ def generate_simulation_plan(
     )
     
     # Step 3: Retrieve references
-    faiss_detailed, dir_structure, dir_counts_str, allrun_reference, file_dependency_flag = retrieve_references(
+    faiss_detailed, dir_structure, dir_counts_str, allrun_reference = retrieve_references(
         case_name=case_name,
         case_solver=case_solver,
         case_domain=case_domain,
         case_category=case_category,
         searchdocs=searchdocs,
-        file_dependency_threshold=file_dependency_threshold
     )
     
     # Step 4: Decompose to subtasks
@@ -262,7 +253,6 @@ def generate_simulation_plan(
         "dir_structure_reference": dir_structure,
         "allrun_reference": allrun_reference,
         "subtasks": subtasks,
-        "file_dependency_flag": file_dependency_flag
     }
 
 

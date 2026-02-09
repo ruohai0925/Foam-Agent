@@ -22,7 +22,7 @@ def initial_write(
     user_requirement: str,
     tutorial_reference: str,
     case_solver: str,
-    file_dependency_flag: bool,
+    generation_mode: str = "sequential_dependency",
     case_info: str = "",
     allrun_reference: str = "",
     mesh_type: str = "blockMesh",
@@ -46,7 +46,6 @@ def initial_write(
         user_requirement (str): Natural language description of simulation requirements
         tutorial_reference (str): Reference content from similar tutorial cases
         case_solver (str): OpenFOAM solver to use (e.g., "simpleFoam", "pimpleFoam")
-        file_dependency_flag (bool): Whether to consider dependencies between files
         case_info (str, optional): Additional case information. Defaults to "".
         allrun_reference (str, optional): Reference Allrun scripts from similar cases. Defaults to "".
         mesh_type (str, optional): Type of mesh to use. Defaults to "blockMesh".
@@ -76,12 +75,17 @@ def initial_write(
         ...     user_requirement="Simple fluid flow simulation",
         ...     tutorial_reference="Reference case content...",
         ...     case_solver="simpleFoam",
-        ...     file_dependency_flag=True
         ... )
         >>> print(f"Generated {len(result['dir_structure'])} directories")
     """
     print(f"============================== Initial Write Mode ==============================")
-    
+
+    if generation_mode not in {"sequential_dependency", "parallel_no_context"}:
+        raise ValueError(
+            f"Unsupported generation_mode: {generation_mode}. "
+            "Expected one of: sequential_dependency, parallel_no_context"
+        )
+
     subtasks = sorted(subtasks, key=compute_priority)
     written_files = []
     dir_structure = {}
@@ -99,51 +103,89 @@ def initial_write(
         "Provide only the code—no explanations, comments, or additional text."
     )
 
-    for subtask in subtasks:
-        print(f"subtask: {subtask}")
-        file_name = subtask["file_name"]
-        folder_name = subtask["folder_name"]
-        
-        if folder_name not in dir_structure:
-            dir_structure[folder_name] = []
-        dir_structure[folder_name].append(file_name)
-        
-        print(f"Generating file: {file_name} in folder: {folder_name}")
-        
-        if not file_name or not folder_name:
-            raise ValueError(f"Invalid subtask format: {subtask}")
-
-        file_path = os.path.join(case_dir, folder_name, file_name)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        
-        # Generate the complete foamfile with proper prompts
+    def _build_prompts(file_name: str, folder_name: str, written_files_ctx: List[FoamfilePydantic]) -> tuple[str, str]:
         code_system_prompt = INITIAL_WRITE_SYSTEM_PROMPT.format(
             file_name=file_name,
             folder_name=folder_name,
-            case_solver=case_solver
+            case_solver=case_solver,
         )
 
         code_user_prompt = (
             f"User requirement: {user_requirement}\n"
             f"Refer to the following similar case file content to ensure the generated file aligns with the user requirement:\n<similar_case_reference>{tutorial_reference}</similar_case_reference>\n"
-            f"Similar case reference is always correct. If you find the user requirement is very consistent with the similar case reference, you should use the similar case reference as the template to generate the file."
-            f"Just modify the necessary parts to make the file complete and functional."
+            "Similar case reference is always correct. If you find the user requirement is very consistent with the similar case reference, you should use the similar case reference as the template to generate the file."
+            "Just modify the necessary parts to make the file complete and functional."
             "Please ensure that the generated file is complete, functional, and logically sound."
             "Additionally, apply your domain expertise to verify that all numerical values are consistent with the user's requirements, maintaining accuracy and coherence."
             "When generating controlDict, do not include anything to preform post processing. Just include the necessary settings to run the simulation."
         )
-        
-        # Handle file dependency as in original code
-        if file_dependency_flag:
-            if len(written_files) > 0:
-                code_user_prompt += f"The following are files content already generated: {str(written_files)}\n\n\nYou should ensure that the new file is consistent with the previous files. Such as boundary conditions, mesh settings, etc."
 
-        generation_response = global_llm_service.invoke(code_user_prompt, code_system_prompt)
-        
+        if generation_mode == "sequential_dependency" and written_files_ctx:
+            code_user_prompt += (
+                f"The following are files content already generated: {str(written_files_ctx)}\n\n\n"
+                "You should ensure that the new file is consistent with the previous files. Such as boundary conditions, mesh settings, etc."
+            )
+
+        return code_user_prompt, code_system_prompt
+
+    def _generate_one(subtask: Dict[str, str], written_files_ctx: List[FoamfilePydantic]) -> FoamfilePydantic:
+        file_name = subtask["file_name"]
+        folder_name = subtask["folder_name"]
+        if not file_name or not folder_name:
+            raise ValueError(f"Invalid subtask format: {subtask}")
+
+        file_path = os.path.join(case_dir, folder_name, file_name)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        code_user_prompt, code_system_prompt = _build_prompts(file_name, folder_name, written_files_ctx)
+
+        if generation_mode == "parallel_no_context":
+            # Avoid shared global LLM instance in parallel mode.
+            from utils import LLMService
+            from config import Config
+            llm = LLMService(Config())
+            generation_response = llm.invoke(code_user_prompt, code_system_prompt)
+        else:
+            generation_response = global_llm_service.invoke(code_user_prompt, code_system_prompt)
+
         code_context = parse_context(generation_response)
         save_file(file_path, code_context)
-        
-        written_files.append(FoamfilePydantic(file_name=file_name, folder_name=folder_name, content=code_context))
+        return FoamfilePydantic(file_name=file_name, folder_name=folder_name, content=code_context)
+
+    # Build dir_structure upfront (deterministic ordering) and generate files
+    for subtask in subtasks:
+        folder_name = subtask.get("folder_name")
+        file_name = subtask.get("file_name")
+        if folder_name not in dir_structure:
+            dir_structure[folder_name] = []
+        dir_structure[folder_name].append(file_name)
+
+    if generation_mode == "parallel_no_context":
+        print("Input writer mode: parallel_no_context (no cross-file context)")
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        # Parallelize all file generations; keep output order consistent with sorted subtasks.
+        results: List[Optional[FoamfilePydantic]] = [None] * len(subtasks)
+        with ThreadPoolExecutor(max_workers=min(32, max(4, len(subtasks)))) as ex:
+            future_map = {
+                ex.submit(_generate_one, subtasks[i], []): i
+                for i in range(len(subtasks))
+            }
+            for fut in as_completed(future_map):
+                i = future_map[fut]
+                results[i] = fut.result()
+
+        written_files.extend([r for r in results if r is not None])
+
+    else:
+        print("Input writer mode: sequential_dependency")
+        for subtask in subtasks:
+            print(f"subtask: {subtask}")
+            file_name = subtask["file_name"]
+            folder_name = subtask["folder_name"]
+            print(f"Generating file: {file_name} in folder: {folder_name}")
+            foamfile = _generate_one(subtask, written_files)
+            written_files.append(foamfile)
     
     # Generate Allrun script if database_path is provided
     if database_path:

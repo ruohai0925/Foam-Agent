@@ -78,7 +78,7 @@ def _initial_write_mode(state):
         user_requirement=state["user_requirement"],
         tutorial_reference=state["tutorial_reference"],
         case_solver=state['case_stats']['case_solver'],
-        file_dependency_flag=state["file_dependency_flag"],
+        generation_mode=getattr(config, "input_writer_generation_mode", "sequential_dependency"),
     )
 
     dir_structure = write_out["dir_structure"]

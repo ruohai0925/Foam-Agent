@@ -92,7 +92,6 @@ async def plan(
             case_stats=case_stats,
             case_dir="",  # Will be resolved later
             searchdocs=global_config.searchdocs,
-            file_dependency_threshold=global_config.file_dependency_threshold
         )
         
         await ctx.info(f"Generated {len(plan_data['subtasks'])} subtasks")
@@ -172,13 +171,12 @@ async def input_writer(
         ctx.info(f"Case info: {case_info}")
         
         # Retrieve references
-        tutorial_reference, dir_structure, dir_counts_str, allrun_reference, file_dependency_flag = retrieve_references(
+        tutorial_reference, dir_structure, dir_counts_str, allrun_reference = retrieve_references(
             case_name=case_info["case_name"],
             case_solver=case_info["case_solver"],
             case_domain=case_info["case_domain"],
             case_category=case_info["case_category"],
             searchdocs=global_config.searchdocs,
-            file_dependency_threshold=global_config.file_dependency_threshold
         )
         
         # Convert subtasks format from {file, folder} to {file_name, folder_name}
@@ -207,7 +205,6 @@ async def input_writer(
             user_requirement=request.user_requirement,
             tutorial_reference=tutorial_reference,
             case_solver=request.case_solver,
-            file_dependency_flag=file_dependency_flag,
             case_info=str(case_info),
             allrun_reference=allrun_reference,
             database_path=str(global_config.database_path),
@@ -368,7 +365,6 @@ async def review(
             case_domain=case_info["case_domain"],
             case_category=case_info["case_category"],
             searchdocs=global_config.searchdocs,
-            file_dependency_threshold=global_config.file_dependency_threshold
         )
         
         # Read current foamfiles from case directory for review context
