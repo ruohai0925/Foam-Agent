@@ -37,16 +37,15 @@ app = FastAPI()
 # --- 在这里添加 CORS 中间件 ---
 
 # 1. 定义一个 "白名单" 列表，包含所有我们允许的来源
-#    请务必使用你 React 应用的真实访问地址
-origins = [
+#    生产/本地域名写在这里；额外来源可通过环境变量 EXTRA_CORS_ORIGINS 添加（逗号分隔）
+_origins_base = [
     "https://cfdqanda.com",
-    "https://www.cfdqanda.com",   # 保留这个，上线后用
-
-    # --- 新增：允许本地前端访问 ---
-    "http://localhost:5173",      # 对应 VITE_API_SERVER_URL=http://localhost:8000
+    "https://www.cfdqanda.com",
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "http://172.28.101.38:5173",  # 你的 WSL IP，以防万一
 ]
+_extra = os.environ.get("EXTRA_CORS_ORIGINS", "")
+origins = _origins_base + [o.strip() for o in _extra.split(",") if o.strip()]
 
 # 2. 将 CORS 中间件添加到我们的 FastAPI 应用中
 app.add_middleware(
