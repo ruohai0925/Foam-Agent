@@ -78,32 +78,28 @@ def llm_requires_hpc(state: GraphState) -> bool:
 
 
 def llm_requires_visualization(state: GraphState) -> bool:
-    """
-    Use LLM to determine if user requires visualization based on their requirement.
-    
-    Args:
-        state: Current graph state containing user requirement and LLM service
-        
-    Returns:
-        bool: True if visualization is required, False otherwise
+    """Use LLM to decide whether to run the visualization node.
+
+    Policy: ONLY visualize when the user explicitly asks for it.
+    If uncertain, default to NO visualization (avoid expensive/flaky post-processing).
     """
     user_requirement = state["user_requirement"]
-    
+
     system_prompt = (
         "You are an expert in OpenFOAM workflow analysis. "
-        "Analyze the user requirement to determine if they want visualization of results. "
-        "Look for keywords like: plot, visualize, graph, chart, contour, streamlines, paraview, post-processing."
-        "Only if the user explicitly mentions they want visualization, return 'yes_visualization'. "
-        "If they don't mention visualization or only want to run the simulation, return 'no_visualization'. "
-        "Be conservative - if unsure, assume visualization is wanted unless clearly specified otherwise."
-        "Only return 'yes_visualization' or 'no_visualization'. Don't return anything else."
+        "Analyze the user requirement to determine if they explicitly want visualization/post-processing of results. "
+        "Signals include requests to: visualize/plot/render results, create images/figures, contours, vectors, streamlines, "
+        "Paraview/PyVista, post-processing, screenshots, or animations. "
+        "Return 'yes_visualization' ONLY if the user explicitly requests visualization. "
+        "If they do not mention visualization, or you are unsure, return 'no_visualization'. "
+        "Only return 'yes_visualization' or 'no_visualization'."
     )
-    
+
     user_prompt = (
         f"User requirement: {user_requirement}\n\n"
-        "return 'yes_visualization' or 'no_visualization'"
+        "Return exactly: 'yes_visualization' or 'no_visualization'."
     )
-    
+
     response = state["llm_service"].invoke(user_prompt, system_prompt)
     return "yes_visualization" in response.lower()
 
