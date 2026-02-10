@@ -54,6 +54,24 @@ python foambench_main.py --output ./output --prompt_path ./user_req_tandem_wing.
 
 ## Getting Started
 
+### Choosing Input Writer generation mode (speed vs. first-pass success)
+
+Foam-Agent supports two generation modes for the **Input Writer Agent** (case file creation). You can set it in `src/config.py`:
+
+- `input_writer_generation_mode = "sequential_dependency"`
+  - Generates files **sequentially** (ordered: `system` → `constant` → `0` → others).
+  - When enabled by the planner, later files may include previously generated files as context to enforce consistency.
+  - **Recommended when case evaluation is expensive** (e.g., HPC runs / long simulations), because it tends to reduce the number of fail→review→rewrite iterations.
+
+- `input_writer_generation_mode = "parallel_no_context"` (default)
+  - Generates files **in parallel** with **no cross-file context** (faster and cheaper prompts).
+  - **Recommended when case evaluation is cheap** (e.g., quick local test runs), where you can rely on the Reviewer/Rewrite loop to fix small inconsistencies.
+
+Rule of thumb:
+- Expensive-to-run cases → choose `sequential_dependency`.
+- Cheap-to-run cases (fast iteration) → choose `parallel_no_context`.
+
+
 ### 1. Quick Start with Docker (Recommended)
 
 Foam-Agent is fully pre-installed in the Docker image `leoyue123/foamagent`. This is the easiest way to get an end-to-end OpenFOAM + Foam-Agent environment.

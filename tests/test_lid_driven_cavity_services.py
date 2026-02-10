@@ -112,7 +112,6 @@ def main():
         tutorial_reference = plan_data["tutorial_reference"]
         dir_structure = plan_data["dir_structure_reference"]
         allrun_reference = plan_data["allrun_reference"]
-        file_dependency_flag = plan_data["file_dependency_flag"]
         
         # Generate files
         case_info_str = f"case name: {plan_data['case_name']}\ncase domain: {plan_data['case_domain']}\ncase category: {plan_data['case_category']}\ncase solver: {plan_data['case_solver']}"
@@ -122,7 +121,6 @@ def main():
             user_requirement=user_requirement,
             tutorial_reference=tutorial_reference,
             case_solver=plan_data["case_solver"],
-            file_dependency_flag=file_dependency_flag,
             case_info=case_info_str,
             allrun_reference=allrun_reference,
             database_path=str(config.database_path),

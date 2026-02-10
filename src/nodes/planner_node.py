@@ -41,7 +41,6 @@ def planner_node(state):
         case_stats=state["case_stats"],
         case_dir=getattr(config, "case_dir", ""),
         searchdocs=getattr(config, "searchdocs", 2),
-        file_dependency_threshold=getattr(config, "file_dependency_threshold", 3000)
     )
     
     # Extract plan data
@@ -55,7 +54,6 @@ def planner_node(state):
     dir_structure_reference = plan_data["dir_structure_reference"]
     allrun_reference = plan_data["allrun_reference"]
     subtasks = plan_data["subtasks"]
-    file_dependency_flag = plan_data["file_dependency_flag"]
     
     print(f"Parsed case name: {case_name}")
     print(f"Parsed case domain: {case_domain}")
@@ -103,5 +101,4 @@ def planner_node(state):
         "allrun_reference": allrun_reference,
         "subtasks": subtasks,
         "mesh_type": mesh_type_value,
-        "file_dependency_flag": file_dependency_flag
     }
