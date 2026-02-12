@@ -17,9 +17,18 @@ class Config:
     # - "sequential_dependency": generate files sequentially; use already-generated files as context to enforce consistency.
     # - "parallel_no_context": generate files in parallel without cross-file context (faster, may need more reviewer iterations).
     input_writer_generation_mode: str = "parallel_no_context"
-    model_provider: str = "openai"# [openai, ollama, bedrock]
-    # model_version should be in ["gpt-5-mini", "deepseek-r1:32b-qwen-distill-fp16", "qwen2.5:32b-instruct"]
-    model_version: str = "gpt-5-mini"
+    # LLM backend:
+    # - "openai": OpenAI Platform usage-based (API key)
+    # - "openai-codex": ChatGPT/Codex subscription sign-in (Codex auth cache)
+    # - "ollama": local models
+    # - "bedrock": AWS Bedrock
+    model_provider: str = "openai-codex"  # [openai, openai-codex, ollama, bedrock]
+    # model_version examples:
+    # - OpenAI: "gpt-5-mini"
+    # - OpenAI Codex subscription: "gpt-5.3-codex" (or whichever Codex model you have access to)
+    # - Ollama: "qwen2.5:32b-instruct"
+    # - Bedrock: application inference profile ARN
+    model_version: str = "gpt-5.3-codex"
     temperature: float = 1
     
     # Embedding Configuration

@@ -191,11 +191,37 @@ from pathlib import Path
 @dataclass
 class Config:
     ...
-    model_provider: str = "openai"  # ["openai", "ollama", "bedrock"]
-    # model_version can be e.g. "gpt-5-mini", "deepseek-r1:32b-qwen-distill-fp16", "qwen2.5:32b-instruct"
+    # ["openai", "openai-codex", "ollama", "bedrock"]
+    model_provider: str = "openai"
     model_version: str = "gpt-5-mini"
     temperature: float = 1.0
 ```
+
+#### Option A: OpenAI API key (usage-based)
+
+- **model_provider**: `"openai"`
+- Set environment variable: `OPENAI_API_KEY=sk-...`
+
+#### Option B: ChatGPT/Codex subscription sign-in (no API key) (experimental)
+
+If you already signed in with ChatGPT for Codex (same flow as the Codex CLI / IDE extension), Foam-Agent can load
+that token from your local Codex auth cache and run inference **via the Codex subscription backend**.
+
+- **model_provider**: `"openai-codex"`
+- **model_version**: a Codex model you have access to, e.g. `"gpt-5.3-codex"`
+
+Foam-Agent looks for a Codex/ChatGPT OAuth cache (first match wins):
+- `$CODEX_HOME/auth.json`
+- `~/.codex/auth.json`
+- `~/.clawdbot/agents/main/agent/auth-profiles.json` (if you already logged in via Clawdbot OpenAI-Codex OAuth)
+
+**How to create `~/.codex/auth.json`:**
+1. Install and run the Codex CLI (or sign in via the Codex IDE extension).
+2. Run `codex login` and choose **Sign in with ChatGPT**.
+3. Ensure Codex stores credentials in a file (some setups use OS keyring by default). If needed, configure
+   Codex to use file-based storage so that `~/.codex/auth.json` exists.
+
+Security note: `~/.codex/auth.json` contains access tokens. Treat it like a password.
 
 To change the LLM configuration inside Docker:
 
