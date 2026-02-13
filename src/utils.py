@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from langchain.chat_models import init_chat_model
 from langchain_community.vectorstores import FAISS
 from langchain_openai.embeddings import OpenAIEmbeddings
+import tiktoken
 from langchain_aws import ChatBedrock, ChatBedrockConverse
 from langchain_anthropic import ChatAnthropic
 from pathlib import Path
@@ -27,67 +28,69 @@ except ImportError:
 # Global dictionary to store loaded FAISS databases
 FAISS_DB_CACHE = {}
 
-def get_embedding_model():
-    provider = Config.embedding_provider.lower()
-    model = Config.embedding_model
-    
+def get_embedding_model(config: Optional[Config] = None):
+    """Return an embedding model based on the provided config.
+
+    Note: historically this module accessed Config.* class attributes at import time.
+    That works for defaults but breaks when callers pass a customized Config instance.
+    """
+    cfg = config or Config()
+
+    provider = (cfg.embedding_provider or "openai").lower()
+    model = cfg.embedding_model
+
     if provider == "openai":
         return OpenAIEmbeddings(model=model)
-    elif provider == "huggingface":
+    if provider == "huggingface":
         if HuggingFaceEmbeddings is None:
-            raise ImportError("langchain-huggingface is not installed. Please install it to use HuggingFace embeddings.")
+            raise ImportError(
+                "langchain-huggingface is not installed. Please install it to use HuggingFace embeddings."
+            )
         return HuggingFaceEmbeddings(model_name=model)
-    elif provider == "ollama":
-        # Assuming usage of OllamaEmbeddings which might be in langchain_ollama or langchain_community
+    if provider == "ollama":
         from langchain_ollama import OllamaEmbeddings
         return OllamaEmbeddings(model=model)
-    else:
-        raise ValueError(f"Unsupported embedding provider: {provider}")
 
-def load_faiss_dbs():
-    embedding_model = get_embedding_model()
-    model_name_sanitized = Config.embedding_model.replace("/", "_").replace("-", "_").lower()
-    
-    # If using default openai model, use legacy path for backward compatibility if new path doesn't exist
-    # OR strictly enforce new structure. 
-    # Plan says: "Load the corresponding FAISS index from the specific subdirectory"
-    
-    # We will assume the structure is: database/faiss/{model_name}/{index_name}
-    # But for backward compatibility with existing openai repo, we might need to check.
-    # The existing code had: f"{DATABASE_DIR}/openfoam_allrun_scripts" where DATABASE_DIR = .../database/faiss
-    
-    # Let's check if we should strictly use subdirectories. 
-    # To avoid breaking the existing setup immediately, I can check if the new path exists, else try legacy path.
-    
+    raise ValueError(f"Unsupported embedding provider: {provider}")
+
+
+def load_faiss_dbs(config: Optional[Config] = None):
+    cfg = config or Config()
+    embedding_model = get_embedding_model(cfg)
+
     base_dir = Path(__file__).resolve().parent.parent / "database" / "faiss"
-    
+
     # Sanitize model name for directory usage
-    model_dir_name = Config.embedding_model.replace("/", "_").replace(":", "_")
-    
+    model_dir_name = (cfg.embedding_model or "").replace("/", "_").replace(":", "_")
     db_path = base_dir / model_dir_name
-    
-    print(f"Loading FAISS indices from: {db_path} with model: {Config.embedding_model}")
-    
+
+    print(f"Loading FAISS indices from: {db_path} with model: {cfg.embedding_model}")
+
     dbs = {}
     indices = [
-        "openfoam_allrun_scripts", 
-        "openfoam_tutorials_structure", 
-        "openfoam_tutorials_details", 
-        "openfoam_command_help"
+        "openfoam_allrun_scripts",
+        "openfoam_tutorials_structure",
+        "openfoam_tutorials_details",
+        "openfoam_command_help",
     ]
-    
+
     for index in indices:
         index_path = db_path / index
         if index_path.exists():
             try:
-                dbs[index] = FAISS.load_local(str(index_path), embedding_model, allow_dangerous_deserialization=True)
+                dbs[index] = FAISS.load_local(
+                    str(index_path), embedding_model, allow_dangerous_deserialization=True
+                )
             except Exception as e:
                 print(f"Failed to load index {index}: {e}")
         else:
             print(f"Warning: Index path does not exist: {index_path}")
-            
+
     return dbs
 
+
+# Default DB cache (uses default Config()). If you change embedding settings at runtime,
+# call load_faiss_dbs(custom_config) and replace FAISS_DB_CACHE.
 FAISS_DB_CACHE = load_faiss_dbs()
 
 class FoamfilePydantic(BaseModel):
@@ -102,11 +105,362 @@ class ResponseWithThinkPydantic(BaseModel):
     think: str = Field(description="Thought process of the LLM")
     response: str = Field(description="Response of the LLM")
     
+class _CodexResponsesWrapper:
+    """Wrapper for an OpenAI Responses-compatible endpoint.
+
+    This mimics the minimal interface LLMService expects from LangChain chat models:
+    - invoke(messages) -> object with .content
+    - get_num_tokens(text) -> int
+
+    We support two wire endpoints:
+    - OpenAI Platform: https://api.openai.com/v1/responses (API key / some OAuth tokens)
+    - ChatGPT/Codex subscription backend: https://chatgpt.com/backend-api/codex/responses
+
+    The ChatGPT backend requires a non-empty `instructions` field that matches the Codex harness
+    expectations. We ship a default copy in `src/codex_instructions_default.txt`.
+    """
+
+    class _Resp:
+        def __init__(self, content: str):
+            self.content = content
+
+    def __init__(
+        self,
+        token: str,
+        model: str,
+        temperature: float = 0.0,
+        *,
+        base_url: str = "https://api.openai.com/v1",
+        account_id: Optional[str] = None,
+        instructions: Optional[str] = None,
+        stream: bool = False,
+    ):
+        self._token = token
+        self._model = model
+        self._temperature = temperature
+        self._base_url = base_url.rstrip("/")
+        self._account_id = account_id
+        self._instructions = instructions
+        self._stream = stream
+        # Token counting (best-effort). Exact tokenization may differ by model.
+        # We default to a modern tokenizer; adjust if you need model-specific counting.
+        try:
+            self._enc = tiktoken.get_encoding("o200k_base")
+        except Exception:
+            self._enc = tiktoken.get_encoding("cl100k_base")
+
+    def get_num_tokens(self, text: str) -> int:
+        return len(self._enc.encode(text or ""))
+
+    @staticmethod
+    def _extract_json_object(text: str) -> str:
+        """Best-effort extraction of a JSON object from a model response."""
+        if not text:
+            raise ValueError("Empty response; expected JSON")
+
+        s = text.strip()
+        # Strip fenced code blocks.
+        if s.startswith("```"):
+            s = re.sub(r"^```[a-zA-Z0-9_-]*\n", "", s)
+            s = re.sub(r"\n```\s*$", "", s).strip()
+
+        # If it's already a JSON object, return it.
+        if s.startswith("{") and s.endswith("}"):
+            return s
+
+        # Otherwise, find the first {...} block.
+        m = re.search(r"\{[\s\S]*\}", s)
+        if not m:
+            raise ValueError(f"Could not find a JSON object in response: {s[:200]}")
+        return m.group(0)
+
+    def with_structured_output(self, pydantic_obj: Type[BaseModel]):
+        """Return a wrapper that parses the model output into a Pydantic object.
+
+        This is a minimal compatibility shim for LangChain's `.with_structured_output()`.
+        """
+
+        parent = self
+
+        class _StructuredWrapper:
+            def get_num_tokens(self, text: str) -> int:
+                return parent.get_num_tokens(text)
+
+            def invoke(self, messages):
+                schema = pydantic_obj.model_json_schema()
+                schema_hint = (
+                    "Return ONLY valid JSON (no markdown) that matches this JSON Schema:\n"
+                    + str(schema)
+                )
+
+                patched = list(messages)
+                # Prepend a system constraint for JSON output.
+                patched.insert(0, {"role": "system", "content": schema_hint})
+
+                resp = parent.invoke(patched)
+                raw = getattr(resp, "content", "")
+                json_text = parent._extract_json_object(raw)
+                return pydantic_obj.model_validate_json(json_text)
+
+        return _StructuredWrapper()
+
+    @staticmethod
+    def _to_responses_input(messages):
+        out = []
+        for m in messages:
+            role = m.get("role")
+            content = m.get("content", "")
+            # Responses API supports rich content; we use simple input_text.
+            out.append({"role": role, "content": [{"type": "input_text", "text": content}]})
+        return out
+
+    @staticmethod
+    def _extract_output_text(resp_json: dict) -> str:
+        # Newer APIs often include output_text; fall back to traversing.
+        if isinstance(resp_json, dict) and isinstance(resp_json.get("output_text"), str):
+            return resp_json["output_text"]
+
+        texts = []
+        for item in resp_json.get("output", []) if isinstance(resp_json, dict) else []:
+            for c in item.get("content", []) if isinstance(item, dict) else []:
+                if isinstance(c, dict):
+                    if c.get("type") in {"output_text", "text"} and isinstance(c.get("text"), str):
+                        texts.append(c["text"])
+        return "\n".join(texts).strip()
+
+    def _build_payload(self, messages):
+        payload = {
+            "model": self._model,
+            "input": self._to_responses_input(messages),
+        }
+
+        # OpenAI Platform supports temperature.
+        if "chatgpt.com" not in self._base_url:
+            payload["temperature"] = self._temperature
+
+        # ChatGPT/Codex subscription backend expects these extra keys.
+        if "chatgpt.com" in self._base_url:
+            payload.update(
+                {
+                    "instructions": self._instructions or "",
+                    "tools": [],
+                    "tool_choice": "auto",
+                    "parallel_tool_calls": False,
+                    "reasoning": {"summary": "auto"},
+                    "store": False,
+                    "stream": bool(self._stream),
+                    "include": ["reasoning.encrypted_content"],
+                }
+            )
+        return payload
+
+    @staticmethod
+    def _iter_sse_text(resp: requests.Response):
+        """Yield decoded SSE 'data:' payloads as strings."""
+        for raw in resp.iter_lines(decode_unicode=True):
+            if not raw:
+                continue
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", errors="ignore")
+            line = str(raw).strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[len("data:") :].strip()
+            if data == "[DONE]":
+                break
+            yield data
+
+    def invoke(self, messages):
+        url = f"{self._base_url}/responses"
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json" if not self._stream else "text/event-stream",
+            "User-Agent": "Foam-Agent",
+        }
+        if self._account_id:
+            headers["ChatGPT-Account-Id"] = self._account_id
+
+        payload = self._build_payload(messages)
+
+        r = requests.post(url, headers=headers, json=payload, timeout=60, stream=bool(self._stream))
+
+        # If we get an error, surface the response body to aid debugging.
+        if not r.ok:
+            try:
+                detail = r.text[:2000]
+            except Exception:
+                detail = ""
+            raise requests.HTTPError(
+                f"HTTP {r.status_code} for {url}. Body: {detail}", response=r
+            )
+
+        if not self._stream:
+            data = r.json()
+            return self._Resp(self._extract_output_text(data))
+
+        # Streaming: accumulate text deltas.
+        import json
+
+        chunks: list[str] = []
+        for s in self._iter_sse_text(r):
+            try:
+                j = json.loads(s)
+            except Exception:
+                continue
+
+            # Codex backend streams OpenAI Responses-style events.
+            if isinstance(j, dict):
+                t = j.get("type")
+                if t == "response.output_text.delta" and isinstance(j.get("delta"), str):
+                    chunks.append(j["delta"])
+                    continue
+                if t == "response.output_text.done" and isinstance(j.get("text"), str):
+                    # Some clients rely on done; we already collected deltas but keep as fallback.
+                    if not chunks:
+                        chunks.append(j["text"])
+                    continue
+
+            # Fallback: try generic extraction.
+            t2 = self._extract_output_text(j)
+            if t2:
+                chunks.append(t2)
+
+        return self._Resp("".join(chunks).strip())
+
+
 class LLMService:
+    @staticmethod
+    def _load_codex_access_token_from_auth_json(auth_json_path: Path) -> str:
+        import json
+
+        data = json.loads(auth_json_path.read_text(encoding="utf-8"))
+
+        # Be permissive: different Codex versions may store different shapes.
+        # Common patterns we try:
+        #   {"access_token": "..."}
+        #   {"token": "..."}
+        #   {"auth": {"access_token": "..."}}
+        #   {"credentials": {"access_token": "..."}}
+        candidates = []
+
+        def maybe_add(v):
+            if isinstance(v, str) and v.strip():
+                candidates.append(v.strip())
+
+        if isinstance(data, dict):
+            maybe_add(data.get("access_token"))
+            maybe_add(data.get("token"))
+
+            for k in ("auth", "credentials", "session"):
+                v = data.get(k)
+                if isinstance(v, dict):
+                    maybe_add(v.get("access_token"))
+                    maybe_add(v.get("token"))
+
+        if not candidates:
+            raise ValueError(
+                f"Could not find an access token in {auth_json_path}. "
+                "Expected keys like access_token/token/id_token."
+            )
+
+        # Prefer access_token-like strings first (we already appended in that order)
+        return candidates[0]
+
+    @staticmethod
+    def _load_codex_oauth_from_clawdbot_auth_profiles(auth_profiles_path: Path) -> tuple[str, Optional[str]]:
+        """Load (access token, account id) from Clawdbot's OpenAI-Codex OAuth cache.
+
+        Expected shape (v1):
+          {"profiles": {"openai-codex:default": {"access": "...", "accountId": "...", ...}}}
+
+        We also fall back to "openai-codex" or any first profile that looks usable.
+        """
+        import json
+
+        data = json.loads(auth_profiles_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError(f"Unexpected JSON in {auth_profiles_path}")
+
+        profiles = data.get("profiles")
+        if not isinstance(profiles, dict):
+            raise ValueError(f"Missing 'profiles' in {auth_profiles_path}")
+
+        preferred_keys = ["openai-codex:default", "openai-codex"]
+        for k in preferred_keys:
+            v = profiles.get(k)
+            if isinstance(v, dict):
+                token = v.get("access")
+                account_id = v.get("accountId")
+                if isinstance(token, str) and token.strip():
+                    return token.strip(), account_id if isinstance(account_id, str) else None
+
+        # Fallback: scan any profile entry that has an 'access' string
+        for _, v in profiles.items():
+            if isinstance(v, dict):
+                token = v.get("access")
+                account_id = v.get("accountId")
+                if isinstance(token, str) and token.strip():
+                    return token.strip(), account_id if isinstance(account_id, str) else None
+
+        raise ValueError(
+            f"Could not find an 'access' token in {auth_profiles_path}. "
+            "Expected profiles[*].access"
+        )
+
+    def _load_codex_oauth(self) -> tuple[str, Optional[str]]:
+        """Load the Codex/ChatGPT OAuth token from a local auth cache.
+
+        Supported locations (first match wins):
+        1) $CODEX_HOME/auth.json (Codex CLI file-based cache)
+        2) ~/.codex/auth.json (Codex CLI default)
+        3) ~/.clawdbot/agents/main/agent/auth-profiles.json (Clawdbot OpenAI-Codex OAuth cache)
+
+        Note: These files contain access/refresh tokens. Treat them like passwords.
+        """
+        candidates: list[Path] = []
+
+        codex_home = os.getenv("CODEX_HOME")
+        if codex_home:
+            candidates.append(Path(codex_home) / "auth.json")
+
+        candidates.append(Path.home() / ".codex" / "auth.json")
+
+        # Clawdbot stores the OpenAI-Codex OAuth profile here.
+        candidates.append(
+            Path.home()
+            / ".clawdbot"
+            / "agents"
+            / "main"
+            / "agent"
+            / "auth-profiles.json"
+        )
+
+        for p in candidates:
+            if not p.exists():
+                continue
+
+            # Codex CLI cache
+            if p.name == "auth.json":
+                return self._load_codex_access_token_from_auth_json(p), None
+
+            # Clawdbot cache
+            if p.name == "auth-profiles.json":
+                return self._load_codex_oauth_from_clawdbot_auth_profiles(p)
+
+        raise FileNotFoundError(
+            "Could not find a Codex/ChatGPT OAuth cache. Looked for: "
+            + ", ".join(str(x) for x in candidates)
+            + ". "
+            "If you used the Codex CLI, run `codex login` and ensure file-based credential storage. "
+            "If you used Clawdbot, make sure you completed OpenAI Codex OAuth in onboarding."
+        )
+
     def __init__(self, config: object):
         self.model_version = getattr(config, "model_version", "gpt-4o")
         self.temperature = getattr(config, "temperature", 0)
         self.model_provider = getattr(config, "model_provider", "openai")
+        self._config = config
         
         # Initialize statistics
         self.total_calls = 0
@@ -131,10 +485,33 @@ class LLMService:
                 temperature=self.temperature
             )
         elif self.model_provider.lower() == "openai":
+            # Usage-based API access (requires OPENAI_API_KEY or equivalent OpenAI SDK config)
             self.llm = init_chat_model(
-                self.model_version, 
-                model_provider=self.model_provider, 
-                temperature=self.temperature
+                self.model_version,
+                model_provider=self.model_provider,
+                temperature=self.temperature,
+            )
+        elif self.model_provider.lower() in {"openai-codex", "codex", "chatgpt-oauth"}:
+            # Subscription-based access via "Sign in with ChatGPT" (Codex auth cache).
+            # We use the OpenAI Responses API, which is the typical surface for Codex subscription access.
+            token, account_id = self._load_codex_oauth()
+
+            # ChatGPT/Codex subscription route: use the same endpoint as Codex CLI.
+            # This avoids requiring Platform API scopes like api.responses.write.
+            instructions_path = Path(__file__).resolve().parent / "codex_instructions_default.txt"
+            try:
+                instructions = instructions_path.read_text(encoding="utf-8")
+            except Exception:
+                instructions = "You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer."
+
+            self.llm = _CodexResponsesWrapper(
+                token=token,
+                account_id=account_id,
+                model=self.model_version,
+                temperature=self.temperature,
+                base_url="https://chatgpt.com/backend-api/codex",
+                instructions=instructions,
+                stream=True,
             )
         elif self.model_provider.lower() == "ollama":
             try:
