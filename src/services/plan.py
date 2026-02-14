@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from pathlib import Path
 from pydantic import BaseModel, Field
 from utils import LLMService, retrieve_faiss, parse_directory_structure
@@ -123,31 +123,115 @@ def resolve_case_dir(
     return os.path.join(base_dir, case_name)
 
 
+class SimilarCaseAdviceModel(BaseModel):
+    match_level: str = Field(description="high/medium/low/none")
+    use_scope: str = Field(description="short guidance about which files can use the reference")
+    advice: str = Field(description="one-sentence advice to include in prompts")
+
+
+def _log_top3(label: str, items: List[Dict[str, Any]]) -> None:
+    print(f"{label} (top-3):")
+    for i, it in enumerate(items[:3], 1):
+        print(
+            f"  {i}. {it.get('case_name')} | {it.get('case_domain')} | {it.get('case_category')} | {it.get('case_solver')} | score={it.get('score')}"
+        )
+
+
+def _rerank_candidates(
+    candidates: List[Dict[str, Any]],
+    case_solver: str,
+) -> List[Dict[str, Any]]:
+    def key(item: Dict[str, Any]) -> tuple:
+        solver_match = 1 if item.get("case_solver") == case_solver else 0
+        score = item.get("score")
+        score_val = 0.0 if score is None else float(score)
+        return (-solver_match, score_val)
+
+    return sorted(candidates, key=key)
+
+
+def _build_advice(
+    user_requirement: str,
+    case_info: str,
+    selected: Optional[Dict[str, Any]],
+    candidates: List[Dict[str, Any]],
+) -> SimilarCaseAdviceModel:
+    cand_lines = [
+        f"- {c.get('case_name')} | {c.get('case_domain')} | {c.get('case_category')} | {c.get('case_solver')} | score={c.get('score')}"
+        for c in candidates[:5]
+    ]
+    cand_block = "\n".join(cand_lines) if cand_lines else "(none)"
+
+    selected_line = (
+        f"{selected.get('case_name')} | {selected.get('case_domain')} | {selected.get('case_category')} | {selected.get('case_solver')} | score={selected.get('score')}"
+        if selected else "(none)"
+    )
+
+    sys_prompt = (
+        "You are a CFD expert. Based on the user requirement and the retrieved similar cases, "
+        "produce a concise usage guidance. If no suitable case is available, set match_level to 'none' "
+        "and advise not to rely on similar case templates."
+    )
+    user_prompt = (
+        f"User requirement:\n{user_requirement}\n\n"
+        f"Case info:\n{case_info}\n\n"
+        f"Selected similar case:\n{selected_line}\n\n"
+        f"Top candidates:\n{cand_block}\n\n"
+        "Return JSON with keys: match_level (high/medium/low/none), use_scope, advice."
+    )
+
+    return global_llm_service.invoke(user_prompt, sys_prompt, pydantic_obj=SimilarCaseAdviceModel)
+
+
 def retrieve_references(case_name: str,
                         case_solver: str,
                         case_domain: str,
                         case_category: str,
-                        searchdocs: int = 2) -> Tuple[str, str, str, str]:
+                        searchdocs: int = 2,
+                        user_requirement: str = "") -> Tuple[str, str, str, str, SimilarCaseAdviceModel]:
     # Build case_info
     case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
-    faiss_structure = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=searchdocs)
-    faiss_structure = faiss_structure[0]['full_content']
-    faiss_structure = re.sub(r"\n{3}", '\n', faiss_structure)
-    faiss_detailed = retrieve_faiss("openfoam_tutorials_details", faiss_structure, topk=searchdocs)
-    faiss_detailed = faiss_detailed[0]['full_content']
+    print("Retrieval query:\n" + case_info)
 
-    dir_structure = re.search(r"<directory_structure>(.*?)</directory_structure>", faiss_detailed, re.DOTALL).group(1).strip()
+    recall_k = max(10, int(searchdocs))
+    faiss_structure_all = retrieve_faiss("openfoam_tutorials_structure", case_info, topk=recall_k)
+    print(f"Retrieved {len(faiss_structure_all)} candidates from FAISS.")
+
+    # Hard constraint: domain must match
+    domain_matched = [c for c in faiss_structure_all if c.get("case_domain") == case_domain]
+    _log_top3("Domain-matched structure candidates", domain_matched)
+
+    if not domain_matched:
+        print(f"No suitable similar case found under domain={case_domain}.")
+        advice = _build_advice(user_requirement, case_info, None, faiss_structure_all)
+        return "", "", "", "", advice
+
+    # Rerank by solver match, then semantic score
+    ranked = _rerank_candidates(domain_matched, case_solver)
+    selected = ranked[0]
+
+    # Use details from the same candidate (no re-query on structure text)
+    faiss_detailed = selected.get("full_content", "")
+    faiss_detailed = re.sub(r"\n{3}", "\n", faiss_detailed)
+
+    m = re.search(r"<directory_structure>(.*?)</directory_structure>", faiss_detailed, re.DOTALL)
+    if not m:
+        print("Warning: No directory_structure found in selected similar case details.")
+        advice = _build_advice(user_requirement, case_info, selected, ranked)
+        return "", "", "", "", advice
+    dir_structure = m.group(1).strip()
     dir_counts = parse_directory_structure(dir_structure)
     dir_counts_str = ',\n'.join([f"There are {count} files in Directory: {directory}" for directory, count in dir_counts.items()])
 
     # Build allrun reference
-    index_content = f"<index>\ncase name: {case_name}\ncase solver: {case_solver}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>"
+    index_content = f"<index>\ncase name: {selected.get('case_name')}\ncase solver: {selected.get('case_solver')}\n</index>\n<directory_structure>\n{dir_structure}\n</directory_structure>"
     faiss_allrun = retrieve_faiss("openfoam_allrun_scripts", index_content, topk=searchdocs)
     allrun_reference = "Similar cases are ordered, with smaller numbers indicating greater similarity. For example, similar_case_1 is more similar than similar_case_2, and similar_case_2 is more similar than similar_case_3.\n"
     for idx, item in enumerate(faiss_allrun):
         allrun_reference += f"<similar_case_{idx + 1}>{item['full_content']}</similar_case_{idx + 1}>\n\n\n"
 
-    return faiss_detailed, dir_structure, dir_counts_str, allrun_reference
+    advice = _build_advice(user_requirement, case_info, selected, ranked)
+    return faiss_detailed, dir_structure, dir_counts_str, allrun_reference, advice
 
 
 def decompose_to_subtasks(user_requirement: str, dir_structure: str, dir_counts_str: str) -> List[Dict]:
@@ -225,12 +309,13 @@ def generate_simulation_plan(
     )
     
     # Step 3: Retrieve references
-    faiss_detailed, dir_structure, dir_counts_str, allrun_reference = retrieve_references(
+    faiss_detailed, dir_structure, dir_counts_str, allrun_reference, advice = retrieve_references(
         case_name=case_name,
         case_solver=case_solver,
         case_domain=case_domain,
         case_category=case_category,
         searchdocs=searchdocs,
+        user_requirement=user_requirement,
     )
     
     # Step 4: Decompose to subtasks
@@ -253,6 +338,7 @@ def generate_simulation_plan(
         "dir_structure_reference": dir_structure,
         "allrun_reference": allrun_reference,
         "subtasks": subtasks,
+        "similar_case_advice": advice,
     }
 
 

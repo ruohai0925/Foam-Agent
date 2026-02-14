@@ -54,6 +54,7 @@ def planner_node(state):
     dir_structure_reference = plan_data["dir_structure_reference"]
     allrun_reference = plan_data["allrun_reference"]
     subtasks = plan_data["subtasks"]
+    similar_case_advice = plan_data.get("similar_case_advice")
     
     print(f"Parsed case name: {case_name}")
     print(f"Parsed case domain: {case_domain}")
@@ -62,6 +63,8 @@ def planner_node(state):
     print(f"Created case directory: {case_dir}")
     print(f"Retrieved similar case structure: {dir_structure_reference}")
     print(f"Generated {len(subtasks)} subtasks.")
+    if similar_case_advice:
+        print(f"Similar case advice: {similar_case_advice}")
 
     # Handle case directory creation/cleanup
     if os.path.exists(case_dir):
@@ -101,4 +104,5 @@ def planner_node(state):
         "allrun_reference": allrun_reference,
         "subtasks": subtasks,
         "mesh_type": mesh_type_value,
+        "similar_case_advice": similar_case_advice,
     }

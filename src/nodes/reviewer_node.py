@@ -21,6 +21,7 @@ def reviewer_node(state):
         foamfiles=state.get('foamfiles'),
         error_logs=state.get('error_logs'),
         user_requirement=state.get('user_requirement', ''),
+        similar_case_advice=state.get('similar_case_advice'),
         history_text=history_text,
     )
 
