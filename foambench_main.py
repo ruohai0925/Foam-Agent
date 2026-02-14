@@ -76,7 +76,7 @@ def main():
     
     print("Starting workflow...")
     run_command(main_cmd)
-    print("Workflow completed successfully.")
+    print("Workflow command finished.")
 
 if __name__ == "__main__":
     ## python foambench_main.py --output ./output --prompt_path "./user_requirement.txt"

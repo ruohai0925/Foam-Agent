@@ -750,6 +750,7 @@ class GraphState(TypedDict):
     job_id: Optional[str]
     cluster_info: Optional[dict]
     slurm_script_path: Optional[str]
+    termination_reason: Optional[str]
 
 def tokenize(text: str) -> str:
     # Replace underscores with spaces
@@ -949,17 +950,38 @@ def check_foam_errors(directory: str) -> list:
     error_logs = []
     # DOTALL mode allows '.' to match newline characters
     pattern = re.compile(r"ERROR:(.*)", re.DOTALL)
-    
+    fatal_patterns = [
+        r"Foam::sigFpe::sigHandler",
+        r"Floating point exception",
+        r"Segmentation fault",
+        r"FOAM FATAL",
+        r"Aborted \(core dumped\)",
+    ]
+
     for file in os.listdir(directory):
         if file.startswith("log"):
             filepath = os.path.join(directory, file)
             with open(filepath, 'r') as f:
                 content = f.read()
-            
+
             match = pattern.search(content)
             if match:
                 error_content = match.group(0).strip()
                 error_logs.append({"file": file, "error_content": error_content})
+                continue
+
+            fatal_match = None
+            for fp in fatal_patterns:
+                m = re.search(fp, content, re.IGNORECASE)
+                if m:
+                    fatal_match = m
+                    break
+
+            if fatal_match:
+                start = max(0, fatal_match.start() - 400)
+                end = min(len(content), fatal_match.end() + 1200)
+                snippet = content[start:end].strip()
+                error_logs.append({"file": file, "error_content": snippet})
             elif "error" in content.lower():
                 print(f"Warning: file {file} contains 'error' but does not match expected format.")
     return error_logs

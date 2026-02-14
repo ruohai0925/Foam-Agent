@@ -145,6 +145,7 @@ def route_after_reviewer(state: GraphState):
     max_loop = state["config"].max_loop
     if loop_count >= max_loop:
         print(f"Maximum loop count ({max_loop}) reached. Ending workflow.")
+        state["termination_reason"] = "max_review_loop_reached"
         if llm_requires_visualization(state):
             return "visualization"
         else:
