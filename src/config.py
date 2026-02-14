@@ -7,7 +7,7 @@ class Config:
     max_loop: int = 25
     
     batchsize: int = 10
-    searchdocs: int = 2
+    searchdocs: int = 5
     run_times: int = 1  # current run number (for directory naming)
     database_path: str = Path(__file__).resolve().parent.parent / "database"
     run_directory: str = Path(__file__).resolve().parent.parent / "runs"

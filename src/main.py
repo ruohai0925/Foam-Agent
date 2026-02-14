@@ -87,7 +87,8 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
         input_writer_mode="initial",
         job_id=None,
         cluster_info=None,
-        slurm_script_path=None
+        slurm_script_path=None,
+        termination_reason=None
     )
     if custom_mesh_path:
         print(f"Custom mesh path: {custom_mesh_path}")
@@ -110,8 +111,13 @@ def main(user_requirement: str, config: Config, custom_mesh_path: Optional[str] 
     # Invoke the graph
     try:
         result = app.invoke(initial_state, config={"recursion_limit": config.recursion_limit})
-        print("Workflow completed successfully!")
-        
+
+        termination_reason = result.get("termination_reason")
+        if termination_reason == "max_review_loop_reached":
+            print("Workflow finished after reaching the maximum review loop limit.")
+        else:
+            print("Workflow completed successfully!")
+
         # Print final statistics
         if result.get("llm_service"):
             result["llm_service"].print_statistics()
