@@ -28,7 +28,8 @@ def initial_write(
     mesh_type: str = "blockMesh",
     mesh_commands: List[str] = None,
     database_path: str = "",
-    searchdocs: int = 2
+    searchdocs: int = 2,
+    similar_case_advice: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Generate OpenFOAM files from scratch based on user requirements and subtasks.
@@ -110,10 +111,26 @@ def initial_write(
             case_solver=case_solver,
         )
 
+        advice_text = ""
+        if isinstance(similar_case_advice, dict):
+            advice_text = (
+                f"Similar case match level: {similar_case_advice.get('match_level')}\n"
+                f"Use scope: {similar_case_advice.get('use_scope')}\n"
+                f"Advice: {similar_case_advice.get('advice')}\n"
+            )
+        elif similar_case_advice:
+            advice_text = str(similar_case_advice)
+
+        similar_ref_block = (
+            f"Refer to the following similar case file content if helpful:\n<similar_case_reference>{tutorial_reference}</similar_case_reference>\n"
+            if tutorial_reference else "No suitable similar case was found for this domain.\n"
+        )
+
         code_user_prompt = (
             f"User requirement: {user_requirement}\n"
-            f"Refer to the following similar case file content to ensure the generated file aligns with the user requirement:\n<similar_case_reference>{tutorial_reference}</similar_case_reference>\n"
-            "Similar case reference is always correct. If you find the user requirement is very consistent with the similar case reference, you should use the similar case reference as the template to generate the file."
+            f"{similar_ref_block}"
+            f"{advice_text}"
+            "If the similar case is a weak match, do not copy it blindly. Use it only where it is consistent with the user requirement. "
             "Just modify the necessary parts to make the file complete and functional."
             "Please ensure that the generated file is complete, functional, and logically sound."
             "Additionally, apply your domain expertise to verify that all numerical values are consistent with the user's requirements, maintaining accuracy and coherence."

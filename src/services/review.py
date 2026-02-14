@@ -19,12 +19,26 @@ def review_error_logs(
     foamfiles: Any,
     error_logs: List[str],
     user_requirement: str,
+    similar_case_advice: Optional[Any] = None,
     history_text: Optional[List[str]] = None,
 ) -> Tuple[str, List[str]]:
     """Stateless reviewer: returns (review_analysis, updated_history)."""
+    advice_text = ""
+    if isinstance(similar_case_advice, dict):
+        advice_text = (
+            f"<similar_case_advice>\n"
+            f"match_level: {similar_case_advice.get('match_level')}\n"
+            f"use_scope: {similar_case_advice.get('use_scope')}\n"
+            f"advice: {similar_case_advice.get('advice')}\n"
+            f"</similar_case_advice>\n"
+        )
+    elif similar_case_advice:
+        advice_text = f"<similar_case_advice>{similar_case_advice}</similar_case_advice>\n"
+
     if history_text:
         reviewer_user_prompt = (
             f"<similar_case_reference>{tutorial_reference}</similar_case_reference>\n"
+            f"{advice_text}"
             f"<foamfiles>{str(foamfiles)}</foamfiles>\n"
             f"<current_error_logs>{error_logs}</current_error_logs>\n"
             f"<history>\n{chr(10).join(history_text)}\n</history>\n\n"
@@ -34,6 +48,7 @@ def review_error_logs(
     else:
         reviewer_user_prompt = (
             f"<similar_case_reference>{tutorial_reference}</similar_case_reference>\n"
+            f"{advice_text}"
             f"<foamfiles>{str(foamfiles)}</foamfiles>\n"
             f"<error_logs>{error_logs}</error_logs>\n"
             f"<user_requirement>{user_requirement}</user_requirement>\n"

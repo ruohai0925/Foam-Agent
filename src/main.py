@@ -109,7 +109,7 @@ def main(user_requirement: str, config: Config, custom_mesh_path: Optional[str] 
     
     # Invoke the graph
     try:
-        result = app.invoke(initial_state)
+        result = app.invoke(initial_state, config={"recursion_limit": config.recursion_limit})
         print("Workflow completed successfully!")
         
         # Print final statistics
