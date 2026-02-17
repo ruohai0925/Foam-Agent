@@ -4,15 +4,16 @@ from pathlib import Path
 
 @dataclass
 class Config:
-    max_loop: int = 10
+    max_loop: int = 25
     
     batchsize: int = 10
-    searchdocs: int = 2
+    searchdocs: int = 10 # max(10, searchdocs)
     run_times: int = 1  # current run number (for directory naming)
     database_path: str = Path(__file__).resolve().parent.parent / "database"
     run_directory: str = Path(__file__).resolve().parent.parent / "runs"
     case_dir: str = ""
     max_time_limit: int = 3600 # Max time limit after which the openfoam run will be terminated, in seconds
+    recursion_limit: int = 100  # LangGraph recursion limit
     # Input writer generation mode:
     # - "sequential_dependency": generate files sequentially; use already-generated files as context to enforce consistency.
     # - "parallel_no_context": generate files in parallel without cross-file context (faster, may need more reviewer iterations).

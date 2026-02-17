@@ -745,10 +745,12 @@ class GraphState(TypedDict):
     # Review and rewrite related fields
     review_analysis: Optional[str]
     input_writer_mode: Optional[str]
+    similar_case_advice: Optional[dict]
     # HPC-related fields
     job_id: Optional[str]
     cluster_info: Optional[dict]
     slurm_script_path: Optional[str]
+    termination_reason: Optional[str]
 
 def tokenize(text: str) -> str:
     # Replace underscores with spaces
@@ -948,13 +950,13 @@ def check_foam_errors(directory: str) -> list:
     error_logs = []
     # DOTALL mode allows '.' to match newline characters
     pattern = re.compile(r"ERROR:(.*)", re.DOTALL)
-    
+
     for file in os.listdir(directory):
         if file.startswith("log"):
             filepath = os.path.join(directory, file)
             with open(filepath, 'r') as f:
                 content = f.read()
-            
+
             match = pattern.search(content)
             if match:
                 error_content = match.group(0).strip()
@@ -1035,22 +1037,29 @@ def retrieve_faiss(database_name: str, query: str, topk: int = 1) -> dict:
     """
     Retrieve a similar case from a FAISS database.
     """
-    
+
     if database_name not in FAISS_DB_CACHE:
         raise ValueError(f"Database '{database_name}' is not loaded.")
-    
+
     # Tokenize the query
     query = tokenize(query)
-    
+
     vectordb = FAISS_DB_CACHE[database_name]
-    docs = vectordb.similarity_search(query, k=topk)
+    try:
+        docs_and_scores = vectordb.similarity_search_with_score(query, k=topk)
+        docs = [d for d, _ in docs_and_scores]
+        scores = [s for _, s in docs_and_scores]
+    except Exception:
+        docs = vectordb.similarity_search(query, k=topk)
+        scores = [None] * len(docs)
+
     if not docs:
         raise ValueError(f"No documents found for query: {query}")
-    
+
     formatted_results = []
-    for doc in docs:
+    for doc, score in zip(docs, scores):
         metadata = doc.metadata or {}
-        
+
         if database_name == "openfoam_allrun_scripts":
             formatted_results.append({
                 "index": doc.page_content,
@@ -1060,14 +1069,16 @@ def retrieve_faiss(database_name: str, query: str, topk: int = 1) -> dict:
                 "case_category": metadata.get("case_category", "unknown"),
                 "case_solver": metadata.get("case_solver", "unknown"),
                 "dir_structure": metadata.get("dir_structure", "unknown"),
-                "allrun_script": metadata.get("allrun_script", "N/A")
+                "allrun_script": metadata.get("allrun_script", "N/A"),
+                "score": score,
             })
         elif database_name == "openfoam_command_help":
             formatted_results.append({
                 "index": doc.page_content,
                 "full_content": metadata.get("full_content", "unknown"),
                 "command": metadata.get("command", "unknown"),
-                "help_text": metadata.get("help_text", "unknown")
+                "help_text": metadata.get("help_text", "unknown"),
+                "score": score,
             })
         elif database_name == "openfoam_tutorials_structure":
             formatted_results.append({
@@ -1077,7 +1088,8 @@ def retrieve_faiss(database_name: str, query: str, topk: int = 1) -> dict:
                 "case_domain": metadata.get("case_domain", "unknown"),
                 "case_category": metadata.get("case_category", "unknown"),
                 "case_solver": metadata.get("case_solver", "unknown"),
-                "dir_structure": metadata.get("dir_structure", "unknown")
+                "dir_structure": metadata.get("dir_structure", "unknown"),
+                "score": score,
             })
         elif database_name == "openfoam_tutorials_details":
             formatted_results.append({
@@ -1088,12 +1100,11 @@ def retrieve_faiss(database_name: str, query: str, topk: int = 1) -> dict:
                 "case_category": metadata.get("case_category", "unknown"),
                 "case_solver": metadata.get("case_solver", "unknown"),
                 "dir_structure": metadata.get("dir_structure", "unknown"),
-                "tutorials": metadata.get("tutorials", "N/A")
+                "tutorials": metadata.get("tutorials", "N/A"),
+                "score": score,
             })
         else:
             raise ValueError(f"Unknown database name: {database_name}")
-    
-    
 
     return formatted_results
         
