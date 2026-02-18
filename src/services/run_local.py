@@ -7,7 +7,7 @@ from utils import remove_files, remove_file, remove_numeric_folders, run_command
 def run_allrun_and_collect_errors(
     case_dir: str,
     timeout: int = 3600,
-    max_retries: int = 3
+    max_retries: int = 1
 ) -> List[str]:
     """
     Execute the Allrun script and collect any error logs from the simulation.
@@ -54,19 +54,34 @@ def run_allrun_and_collect_errors(
     remove_file(out_file)
     remove_numeric_folders(case_dir)
 
-    # Run
-    run_command(allrun_file_path, out_file, err_file, case_dir, timeout)
+    last_error_logs = []
 
-    # Inspect
-    error_logs = check_foam_errors(case_dir)
-    return error_logs
+    # Run with retries
+    for attempt in range(1, max_retries + 1):
+        print(f"Running Allrun (attempt {attempt}/{max_retries})")
+        run_command(allrun_file_path, out_file, err_file, case_dir, timeout)
+
+        # Inspect
+        error_logs = check_foam_errors(case_dir)
+        if len(error_logs) == 0:
+            return []
+
+        last_error_logs = error_logs
+        if attempt < max_retries:
+            print("Allrun reported errors; retrying after cleanup...")
+            remove_files(case_dir, prefix="log")
+            remove_file(err_file)
+            remove_file(out_file)
+            remove_numeric_folders(case_dir)
+
+    return last_error_logs
 
 
 def run_simulation_local(
     case_id: str,
     case_dir: str,
     timeout: int = 3600,
-    max_retries: int = 3
+    max_retries: int = 1
 ) -> RunOut:
     """
     Run OpenFOAM simulation locally and return execution status.

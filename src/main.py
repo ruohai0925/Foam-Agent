@@ -85,6 +85,8 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
         custom_mesh_path=custom_mesh_path,
         review_analysis=None,
         input_writer_mode="initial",
+        requires_hpc=None,
+        requires_visualization=None,
         job_id=None,
         cluster_info=None,
         slurm_script_path=None,
