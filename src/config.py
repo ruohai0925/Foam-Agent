@@ -17,7 +17,7 @@ class Config:
     # Input writer generation mode:
     # - "sequential_dependency": generate files sequentially; use already-generated files as context to enforce consistency.
     # - "parallel_no_context": generate files in parallel without cross-file context (faster, may need more reviewer iterations).
-    input_writer_generation_mode: str = "parallel_no_context"
+    input_writer_generation_mode: str = "sequential_dependency"
     # LLM backend:
     # - "openai": OpenAI Platform usage-based (API key)
     # - "openai-codex": ChatGPT/Codex subscription sign-in (Codex auth cache)
@@ -33,5 +33,5 @@ class Config:
     temperature: float = 1
     
     # Embedding Configuration
-    embedding_provider: str = "openai" # [openai, huggingface, ollama]
-    embedding_model: str = "text-embedding-3-small" # e.g. "text-embedding-3-small", "text-embedding-3-large", "Qwen/Qwen3-Embedding-0.6B", "Qwen/Qwen3-Embedding-8B"
+    embedding_provider: str = "huggingface" # [openai, huggingface, ollama]
+    embedding_model: str = "Qwen/Qwen3-Embedding-0.6B" # e.g. "text-embedding-3-small", "text-embedding-3-large", "Qwen/Qwen3-Embedding-0.6B", "Qwen/Qwen3-Embedding-8B"

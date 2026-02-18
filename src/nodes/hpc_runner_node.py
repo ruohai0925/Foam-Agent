@@ -10,8 +10,6 @@ from services.run_hpc import (
     check_logs_for_errors,
     create_slurm_script_with_error_context,
     create_slurm_script,
-    submit_slurm_job,
-    check_job_status,
 )
 
 
@@ -103,7 +101,17 @@ def hpc_runner_node(state):
             "slurm_script_path": script_path
         }
     print(f"Job finished with status: {status}")
-    
+
+    if status != "COMPLETED":
+        error_logs = [f"HPC job finished with non-success status: {status}"]
+        return {
+            **state,
+            "error_logs": error_logs,
+            "job_id": job_id,
+            "cluster_info": cluster_info,
+            "slurm_script_path": script_path
+        }
+
     # Check for errors in log files (similar to local_runner)
     print("Checking for errors in log files...")
     error_logs = check_logs_for_errors(case_dir)
@@ -113,8 +121,6 @@ def hpc_runner_node(state):
         print(error_logs)
     else:
         print("HPC Allrun executed successfully without errors.")
-    
-    state['loop_count'] += 1
     
     # Return updated state
     return {

@@ -746,6 +746,9 @@ class GraphState(TypedDict):
     review_analysis: Optional[str]
     input_writer_mode: Optional[str]
     similar_case_advice: Optional[dict]
+    # Routing decision cache
+    requires_hpc: Optional[bool]
+    requires_visualization: Optional[bool]
     # HPC-related fields
     job_id: Optional[str]
     cluster_info: Optional[dict]
@@ -912,7 +915,17 @@ def run_command(script_path: str, out_file: str, err_file: str, working_dir: str
     print(f"Executing script {script_path} in {working_dir}")
     os.chmod(script_path, 0o777)
     openfoam_dir = os.getenv("WM_PROJECT_DIR")
-    command = f"source {openfoam_dir}/etc/bashrc && bash {os.path.abspath(script_path)}"
+    if not openfoam_dir:
+        raise RuntimeError(
+            "WM_PROJECT_DIR is not set. Please source OpenFOAM environment before running Foam-Agent "
+            "(e.g., source env/common.sh and env/foamagent.sh)."
+        )
+
+    bashrc_path = os.path.join(openfoam_dir, "etc", "bashrc")
+    if not os.path.exists(bashrc_path):
+        raise RuntimeError(f"OpenFOAM bashrc not found at: {bashrc_path}")
+
+    command = f"source {bashrc_path} && bash {os.path.abspath(script_path)}"
 
     with open(out_file, 'w') as out, open(err_file, 'w') as err:
         process = subprocess.Popen(

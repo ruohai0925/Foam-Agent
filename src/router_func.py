@@ -124,21 +124,32 @@ def route_after_planner(state: GraphState):
 def route_after_input_writer(state: GraphState):
     """
     Route after input_writer node based on whether user wants to run on HPC.
+    Prefer planner-cached decision to avoid repeated LLM routing jitter.
     """
-    if llm_requires_hpc(state):
-        print("LLM determined: HPC run requested. Routing to hpc_runner node.")
+    requires_hpc = state.get("requires_hpc")
+    if requires_hpc is None:
+        requires_hpc = llm_requires_hpc(state)
+        state["requires_hpc"] = requires_hpc
+
+    if requires_hpc:
+        print("Router: HPC run requested. Routing to hpc_runner node.")
         return "hpc_runner"
     else:
-        print("LLM determined: Local run requested. Routing to local_runner node.")
+        print("Router: Local run requested. Routing to local_runner node.")
         return "local_runner"
 
 def route_after_runner(state: GraphState):
     if state.get("error_logs") and len(state["error_logs"]) > 0:
         return "reviewer"
-    elif llm_requires_visualization(state):
+
+    requires_visualization = state.get("requires_visualization")
+    if requires_visualization is None:
+        requires_visualization = llm_requires_visualization(state)
+        state["requires_visualization"] = requires_visualization
+
+    if requires_visualization:
         return "visualization"
-    else:
-        return END
+    return END
 
 def route_after_reviewer(state: GraphState):
     loop_count = state.get("loop_count", 0)
@@ -146,10 +157,11 @@ def route_after_reviewer(state: GraphState):
     if loop_count >= max_loop:
         print(f"Maximum loop count ({max_loop}) reached. Ending workflow.")
         state["termination_reason"] = "max_review_loop_reached"
-        if llm_requires_visualization(state):
-            return "visualization"
-        else:
-            return END
-    print(f"Loop {loop_count}: Continuing to fix errors.")
+        requires_visualization = state.get("requires_visualization")
+        if requires_visualization is None:
+            requires_visualization = llm_requires_visualization(state)
+            state["requires_visualization"] = requires_visualization
+        return "visualization" if requires_visualization else END
 
+    print(f"Loop {loop_count}: Continuing to fix errors.")
     return "input_writer"

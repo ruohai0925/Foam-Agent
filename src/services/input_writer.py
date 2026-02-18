@@ -339,7 +339,7 @@ def build_allrun(
         "CRITICAL: Do not include any commands to convert mesh to foam format like gmshToFoam or others."
     )
 
-    if mesh_type == "custom":
+    if mesh_type == "custom_mesh":
         allrun_system_prompt += "CRITICAL: Do not include any other mesh commands other than the custom mesh commands.\n"
         allrun_system_prompt += "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
     
@@ -357,7 +357,7 @@ def build_allrun(
         "Generate the Allrun script strictly based on the above information. Do not include explanations, comments, or additional text. Put the code in ``` tags."
     )
 
-    if mesh_type == "custom":
+    if mesh_type == "custom_mesh":
         allrun_user_prompt += "CRITICAL: Do not include any other mesh commands other than the custom mesh commands.\n"
         allrun_user_prompt += "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
 

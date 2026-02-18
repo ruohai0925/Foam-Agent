@@ -8,7 +8,7 @@ import shutil
 from utils import save_file, retrieve_faiss, parse_directory_structure, LLMService
 from services.plan import generate_simulation_plan
 from services import global_llm_service
-from router_func import llm_requires_custom_mesh
+from router_func import llm_requires_custom_mesh, llm_requires_hpc, llm_requires_visualization
 
 class CaseSummaryPydantic(BaseModel):
     case_name: str = Field(description="name of the case")
@@ -89,6 +89,11 @@ def planner_node(state):
     
     print(f"Planner set mesh_type to: {mesh_type_value}")
 
+    # Cache routing decisions to avoid repeated LLM calls in routing.
+    requires_hpc = llm_requires_hpc(state)
+    requires_visualization = llm_requires_visualization(state)
+    print(f"Planner set requires_hpc={requires_hpc}, requires_visualization={requires_visualization}")
+
     # Return updated state
     case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
     return {
@@ -104,5 +109,7 @@ def planner_node(state):
         "allrun_reference": allrun_reference,
         "subtasks": subtasks,
         "mesh_type": mesh_type_value,
+        "requires_hpc": requires_hpc,
+        "requires_visualization": requires_visualization,
         "similar_case_advice": similar_case_advice,
     }
