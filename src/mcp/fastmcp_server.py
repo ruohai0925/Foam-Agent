@@ -473,6 +473,7 @@ async def apply_fixes(
             case_dir=request.case_dir,
             error_logs=request.error_logs,
             review_analysis=request.review_analysis,
+            rewrite_plan=None,
             user_requirement=request.user_requirement
             # foamfiles and dir_structure will be read automatically if None
         )
