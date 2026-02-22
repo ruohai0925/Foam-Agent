@@ -1,7 +1,7 @@
 # reviewer_node.py
 from pydantic import BaseModel, Field
 from typing import List
-from services.review import review_error_logs
+from services.review import review_error_logs, generate_rewrite_plan
 
 
 def reviewer_node(state):
@@ -27,9 +27,18 @@ def reviewer_node(state):
 
     print(review_content)
 
+    rewrite_plan = generate_rewrite_plan(
+        foamfiles=state.get('foamfiles'),
+        error_logs=state.get('error_logs', []),
+        review_analysis=review_content,
+        user_requirement=state.get('user_requirement', ''),
+    )
+    print(f"Rewrite plan: {rewrite_plan}")
+
     return {
         "history_text": updated_history,
         "review_analysis": review_content,
+        "rewrite_plan": rewrite_plan,
         "loop_count": state.get("loop_count", 0) + 1,
         "input_writer_mode": "rewrite",
     }

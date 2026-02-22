@@ -744,6 +744,7 @@ class GraphState(TypedDict):
     custom_mesh_path: Optional[str]
     # Review and rewrite related fields
     review_analysis: Optional[str]
+    rewrite_plan: Optional[dict]
     input_writer_mode: Optional[str]
     similar_case_advice: Optional[dict]
     # Routing decision cache
