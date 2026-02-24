@@ -339,7 +339,7 @@ def build_allrun(
         "CRITICAL: Do not include any commands to convert mesh to foam format like gmshToFoam or others."
     )
 
-    if mesh_type == "custom":
+    if mesh_type == "custom_mesh":
         allrun_system_prompt += "CRITICAL: Do not include any other mesh commands other than the custom mesh commands.\n"
         allrun_system_prompt += "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
     
@@ -357,7 +357,7 @@ def build_allrun(
         "Generate the Allrun script strictly based on the above information. Do not include explanations, comments, or additional text. Put the code in ``` tags."
     )
 
-    if mesh_type == "custom":
+    if mesh_type == "custom_mesh":
         allrun_user_prompt += "CRITICAL: Do not include any other mesh commands other than the custom mesh commands.\n"
         allrun_user_prompt += "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
 
@@ -375,6 +375,7 @@ def rewrite_files(
     case_dir: str,
     error_logs: List[str],
     review_analysis: str,
+    rewrite_plan: Optional[Dict[str, Any]],
     user_requirement: str,
     foamfiles: Optional[Any] = None,
     dir_structure: Optional[Dict[str, List[str]]] = None
@@ -443,24 +444,33 @@ def rewrite_files(
 
     rewrite_system_prompt = (
         "You are an expert in OpenFOAM simulation and numerical modeling. "
-        "Your task is to modify and rewrite the necessary OpenFOAM files to fix the reported error. "
-        "Please do not propose solutions that require modifying any parameters declared in the user requirement, try other approaches instead."
-        "The user will provide the error content, error command, reviewer's suggestions, and all relevant foam files. "
-        "Only return files that require rewriting, modification, or addition; do not include files that remain unchanged. "
-        "Return the complete, corrected file contents in the following JSON format: "
+        "Your task is to modify and rewrite OpenFOAM files to fix the reported error. "
+        "Please do not propose solutions that require modifying any parameters declared in the user requirement, try other approaches instead. "
+        "You will receive a rewrite_plan. Follow it strictly: only modify files listed in rewrite_plan.target_files and apply only the requested changes. "
+        "Do not modify files outside the plan. "
+        "Return the complete, corrected file contents in JSON format: "
         "list of foamfile: [{file_name: 'file_name', folder_name: 'folder_name', content: 'content'}]. "
-        "Ensure your response includes only the modified file content with no extra text, as it will be parsed using Pydantic."
+        "Ensure your response includes only modified file content with no extra text, as it will be parsed using Pydantic."
     )
 
     rewrite_user_prompt = (
         f"<foamfiles>{str(foamfiles)}</foamfiles>\n"
         f"<error_logs>{error_logs}</error_logs>\n"
-        f"<reviewer_analysis>{review_analysis}</reviewer_analysis>\n\n"
+        f"<reviewer_analysis>{review_analysis}</reviewer_analysis>\n"
+        f"<rewrite_plan>{rewrite_plan}</rewrite_plan>\n\n"
         f"<user_requirement>{user_requirement}</user_requirement>\n\n"
-        "Please update the relevant OpenFOAM files to resolve the reported errors, ensuring that all modifications strictly adhere to the specified formats. Ensure all modifications adhere to user requirement."
+        "Please update OpenFOAM files according to rewrite_plan only. "
+        "Only include files from rewrite_plan.target_files in your output."
     )
 
     response = global_llm_service.invoke(rewrite_user_prompt, rewrite_system_prompt, pydantic_obj=FoamPydantic)
+
+    allowed_files = set()
+    if rewrite_plan and isinstance(rewrite_plan, dict):
+        for item in rewrite_plan.get("target_files", []):
+            file_path = item.get("file") if isinstance(item, dict) else None
+            if file_path:
+                allowed_files.add(file_path.strip().lstrip("./"))
 
     # Prepare updated structures
     updated_dir = dict(dir_structure) if dir_structure else {}
@@ -469,6 +479,11 @@ def rewrite_files(
         foamfiles_list = list(foamfiles.list_foamfile)
 
     for foamfile in response.list_foamfile:
+        rel_path = os.path.join(foamfile.folder_name, foamfile.file_name).replace('\\', '/').lstrip('./')
+        if allowed_files and rel_path not in allowed_files:
+            print(f"Warning: Skipping unplanned rewrite file: {rel_path}")
+            continue
+
         file_path = os.path.join(case_dir, foamfile.folder_name, foamfile.file_name)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         save_file(file_path, foamfile.content)

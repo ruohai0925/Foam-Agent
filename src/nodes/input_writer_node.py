@@ -59,6 +59,7 @@ def _rewrite_mode(state):
         case_dir=state["case_dir"],
         error_logs=state.get("error_logs", []),
         review_analysis=state.get("review_analysis", ""),
+        rewrite_plan=state.get("rewrite_plan"),
         user_requirement=state.get("user_requirement", ""),
         foamfiles=state.get("foamfiles"),
         dir_structure=state.get("dir_structure", {}),
