@@ -1,1 +1,0 @@
-python foambench_main.py --openfoam_path $WM_PROJECT_DIR --output ./output --prompt_path ./user_requirement.txt > foambench.log 2>&1
