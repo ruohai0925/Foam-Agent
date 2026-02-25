@@ -1,18 +1,19 @@
 # config.py
+import os
 from dataclasses import dataclass
 from pathlib import Path
+
 
 @dataclass
 class Config:
     max_loop: int = 25
-    
     batchsize: int = 10
     searchdocs: int = 10 # max(10, searchdocs)
-    run_times: int = 1  # current run number (for directory naming)
+    run_times: int = 1   # current run number (for directory naming)
     database_path: str = Path(__file__).resolve().parent.parent / "database"
     run_directory: str = Path(__file__).resolve().parent.parent / "runs"
     case_dir: str = ""
-    max_time_limit: int = 3600 # Max time limit after which the openfoam run will be terminated, in seconds
+    max_time_limit: int = 3600  # Max time limit after which the openfoam run will be terminated, in seconds
     recursion_limit: int = 100  # LangGraph recursion limit
     # Input writer generation mode:
     # - "sequential_dependency": generate files sequentially; use already-generated files as context to enforce consistency.
@@ -23,15 +24,55 @@ class Config:
     # - "openai-codex": ChatGPT/Codex subscription sign-in (Codex auth cache)
     # - "ollama": local models
     # - "bedrock": AWS Bedrock
-    model_provider: str = "openai-codex"  # [openai, openai-codex, ollama, bedrock]
+    # - "anthropic": Anthropic Claude API (requires ANTHROPIC_API_KEY)
+    model_provider: str = "openai-codex"  # [openai, openai-codex, ollama, bedrock, anthropic]
     # model_version examples:
     # - OpenAI: "gpt-5-mini"
     # - OpenAI Codex subscription: "gpt-5.3-codex" (or whichever Codex model you have access to)
     # - Ollama: "qwen2.5:32b-instruct"
     # - Bedrock: application inference profile ARN
+    # - Anthropic: claude-3-5-sonnet-latest
     model_version: str = "gpt-5.3-codex"
     temperature: float = 1
-    
+
     # Embedding Configuration
-    embedding_provider: str = "huggingface" # [openai, huggingface, ollama]
-    embedding_model: str = "Qwen/Qwen3-Embedding-0.6B" # e.g. "text-embedding-3-small", "text-embedding-3-large", "Qwen/Qwen3-Embedding-0.6B", "Qwen/Qwen3-Embedding-8B"
+    embedding_provider: str = "huggingface"  # [openai, huggingface, ollama]
+    embedding_model: str = "Qwen/Qwen3-Embedding-0.6B"  # e.g. "text-embedding-3-small", "text-embedding-3-large", "Qwen/Qwen3-Embedding-0.6B", "Qwen/Qwen3-Embedding-8B"
+
+    def __post_init__(self) -> None:
+        """Load config overrides from environment variables.
+
+        Priority: env var (if set & non-empty) > default value.
+        Always prints what value is used to make runs reproducible.
+        """
+
+        def _env_nonempty(key: str) -> str | None:
+            v = os.getenv(key)
+            if v is None:
+                return None
+            v = v.strip()
+            return v if v else None
+
+        # LLM provider/model overrides
+        provider_key = "FOAMAGENT_MODEL_PROVIDER"
+        version_key = "FOAMAGENT_MODEL_VERSION"
+
+        provider_env = _env_nonempty(provider_key)
+        if provider_env is not None:
+            allowed = {"openai", "openai-codex", "ollama", "bedrock", "anthropic"}
+            if provider_env in allowed:
+                self.model_provider = provider_env
+                print(f"[Config] model_provider={self.model_provider} (env:{provider_key})")
+            else:
+                print(
+                    f"[Config] model_provider={self.model_provider} (default; invalid env:{provider_key}={provider_env!r})"
+                )
+        else:
+            print(f"[Config] model_provider={self.model_provider} (default)")
+
+        version_env = _env_nonempty(version_key)
+        if version_env is not None:
+            self.model_version = version_env
+            print(f"[Config] model_version={self.model_version} (env:{version_key})")
+        else:
+            print(f"[Config] model_version={self.model_version} (default)")

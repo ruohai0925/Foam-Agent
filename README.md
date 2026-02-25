@@ -191,10 +191,25 @@ from pathlib import Path
 @dataclass
 class Config:
     ...
-    # ["openai", "openai-codex", "ollama", "bedrock"]
+    # ["openai", "openai-codex", "ollama", "bedrock", "anthropic"]
     model_provider: str = "openai"
     model_version: str = "gpt-5-mini"
     temperature: float = 1.0
+```
+
+You can also override these values via environment variables (recommended for Docker / CI):
+- `FOAMAGENT_MODEL_PROVIDER` (e.g., `openai`, `openai-codex`, `anthropic`, `ollama`, `bedrock`)
+- `FOAMAGENT_MODEL_VERSION` (e.g., `gpt-5-mini`, `gpt-5.3-codex`, `claude-3-5-sonnet-latest`, ...)
+
+Example:
+```bash
+docker run -it \
+  -e FOAMAGENT_MODEL_PROVIDER=openai \
+  -e FOAMAGENT_MODEL_VERSION=gpt-5-mini \
+  -e OPENAI_API_KEY=your-key-here \
+  -p 7860:7860 \
+  --name foamagent \
+  foamagent:latest
 ```
 
 #### Option A: OpenAI API key (usage-based)
@@ -202,7 +217,13 @@ class Config:
 - **model_provider**: `"openai"`
 - Set environment variable: `OPENAI_API_KEY=sk-...`
 
-#### Option B: ChatGPT/Codex subscription sign-in (no API key) (experimental)
+#### Option B: Anthropic Claude API key (usage-based)
+
+- **model_provider**: `"anthropic"`
+- Set environment variable: `ANTHROPIC_API_KEY=...`
+- **model_version**: e.g. `"claude-3-5-sonnet-latest"`
+
+#### Option C: ChatGPT/Codex subscription sign-in (no API key) (experimental)
 
 If you already signed in with ChatGPT for Codex (same flow as the Codex CLI / IDE extension), Foam-Agent can load
 that token from your local Codex auth cache and run inference **via the Codex subscription backend**.
@@ -234,6 +255,9 @@ nano src/config.py
 - **OpenAI (via `OPENAI_API_KEY`)**:
   - **model_provider**: `"openai"`
   - **model_version**: e.g. `"gpt-5-mini"` or another supported OpenAI-compatible model name
+- **Anthropic (via `ANTHROPIC_API_KEY`)**:
+  - **model_provider**: `"anthropic"`
+  - **model_version**: e.g. `"claude-3-5-sonnet-latest"`
 - **AWS Bedrock**:
   - **model_provider**: `"bedrock"`
   - **model_version**: your Bedrock application ARN
@@ -383,10 +407,11 @@ If you use Foam-Agent in your research, please cite our paper:
 }
 
 @article{somasekharan2025cfdllmbench,
-  title={CFDLLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
-  author={Somasekharan, Nithin and Yue, Ling and Cao, Yadi and Li, Weichao and Emami, Patrick and Bhargav, Pochinapeddi Sai and Acharya, Anurag and Xie, Xingyu and Pan, Shaowu},
-  journal={arXiv preprint arXiv:2509.20374},
-  year={2025}
+    title={CFDLLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
+    author={Somasekharan, Nithin and Yue, Ling and Cao, Yadi and Li, Weichao and Emami, Patrick and Bhargav, Pochinapeddi Sai and Acharya, Anurag and Xie, Xingyu and Pan, Shaowu},
+    journal={Journal of Data-centric Machine Learning Research},
+    year={2025},
+    url={https://openreview.net/forum?id=kTcH1MnkjY}
 }
 
 ```
