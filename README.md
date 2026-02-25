@@ -383,10 +383,12 @@ If you use Foam-Agent in your research, please cite our paper:
 }
 
 @article{somasekharan2025cfdllmbench,
-  title={CFDLLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
-  author={Somasekharan, Nithin and Yue, Ling and Cao, Yadi and Li, Weichao and Emami, Patrick and Bhargav, Pochinapeddi Sai and Acharya, Anurag and Xie, Xingyu and Pan, Shaowu},
-  journal={arXiv preprint arXiv:2509.20374},
-  year={2025}
+    title={FDLLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
+    author={Somasekharan, Nithin and \textbf{Ling Yue} and Cao, Yadi and Li, Weichao and Emami, Patrick and Bhargav, Pochinapeddi Sai and Acharya, Anurag and Xie, Xingyu and Pan, Shaowu},
+    journal={Journal of Data-centric Machine Learning Research},
+    year={2025},
+    url={https://openreview.net/forum?id=kTcH1MnkjY},
+    note={}
 }
 
 ```
