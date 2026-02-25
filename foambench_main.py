@@ -6,6 +6,9 @@ import shlex
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Benchmark Workflow Interface")
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
     parser.add_argument(
         '--openfoam_path',
         type=str,
@@ -15,14 +18,16 @@ def parse_args():
     parser.add_argument(
         '--output',
         type=str,
-        required=True,
-        help="Base output directory for benchmark results"
+        required=False,
+        default=os.path.join(base_dir, "output"),
+        help="Base output directory for benchmark results (default: <dir_of_foambench_main.py>/output)"
     )
     parser.add_argument(
         '--prompt_path',
         type=str,
-        required=True,
-        help="User requirement file path for the benchmark"
+        required=False,
+        default=os.path.join(base_dir, "user_requirement.txt"),
+        help="User requirement file path for the benchmark (default: <dir_of_foambench_main.py>/user_requirement.txt)"
     )
     parser.add_argument(
         '--custom_mesh_path',
@@ -79,6 +84,8 @@ def main():
     print("Workflow command finished.")
 
 if __name__ == "__main__":
-    ## python foambench_main.py --output ./output --prompt_path "./user_requirement.txt"
-    ## python foambench_main.py --output ./output --prompt_path "./user_requirement.txt" --custom_mesh_path "./my_mesh.msh"
+    # Examples (paths are resolved relative to the directory containing this file):
+    #   python foambench_main.py
+    #   python foambench_main.py --output output --prompt_path user_requirement.txt
+    #   python foambench_main.py --output output --prompt_path user_requirement.txt --custom_mesh_path my_mesh.msh
     main()
