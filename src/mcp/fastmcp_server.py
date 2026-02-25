@@ -171,7 +171,7 @@ async def input_writer(
         ctx.info(f"Case info: {case_info}")
         
         # Retrieve references
-        tutorial_reference, dir_structure, dir_counts_str, allrun_reference = retrieve_references(
+        tutorial_reference, dir_structure, dir_counts_str, allrun_reference, _ = retrieve_references(
             case_name=case_info["case_name"],
             case_solver=case_info["case_solver"],
             case_domain=case_info["case_domain"],
