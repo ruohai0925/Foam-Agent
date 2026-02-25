@@ -158,7 +158,7 @@ The server uses the existing `Config` class from `config.py`. Key configuration 
 - `run_directory`: Directory for case outputs
 - `max_loop`: Maximum retry loops
 - `searchdocs`: Number of similar documents to retrieve
-- `model_provider`: LLM provider (bedrock, openai, ollama)
+- `model_provider`: LLM provider (bedrock, openai, openai-codex, anthropic, ollama)
 - `model_version`: Specific model version
 
 ## Error Handling
