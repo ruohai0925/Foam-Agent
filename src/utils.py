@@ -937,7 +937,8 @@ def run_command(script_path: str, out_file: str, err_file: str, working_dir: str
             stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
             text=True,
-            start_new_session=True
+            start_new_session=True,
+        )
 
         try:
             stdout, stderr = process.communicate(timeout=max_time_limit)
