@@ -2,6 +2,7 @@
 import re
 import subprocess
 import os
+import signal
 from typing import Optional, Any, Type, TypedDict, List, Dict
 from pydantic import BaseModel, Field
 from langchain.chat_models import init_chat_model
@@ -935,18 +936,16 @@ def run_command(script_path: str, out_file: str, err_file: str, working_dir: str
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
-            text=True
-        )
-        # stdout, stderr = process.communicate()
-        # out.write(stdout)
-        # err.write(stderr)
+            text=True,
+            start_new_session=True
 
         try:
             stdout, stderr = process.communicate(timeout=max_time_limit)
             out.write(stdout)
             err.write(stderr)
         except subprocess.TimeoutExpired:
-            process.kill()
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL) 
+            
             stdout, stderr = process.communicate()
             timeout_message = (
                 "OpenFOAM execution took too long. "
