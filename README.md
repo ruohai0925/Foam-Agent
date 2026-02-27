@@ -392,18 +392,15 @@ python foambench_main.py \
 ## Citation
 If you use Foam-Agent in your research, please cite our paper:
 ```bibtex
-@article{yue2025foam,
-  title={Foam-Agent: Towards Automated Intelligent CFD Workflows},
-  author={Yue, Ling and Somasekharan, Nithin and Cao, Yadi and Pan, Shaowu},
-  journal={arXiv preprint arXiv:2505.04997},
-  year={2025}
-}
-
-@article{yue2025foamagent,
-  title={Foam-Agent 2.0: An End-to-End Composable Multi-Agent Framework for Automating CFD Simulation in OpenFOAM},
-  author={Yue, Ling and Somasekharan, Nithin and Zhang, Tingwen and Cao, Yadi and Pan, Shaowu},
-  journal={arXiv preprint arXiv:2509.18178},
-  year={2025}
+@article{yue2026foam,
+  title        = {Automating Computational Fluid Dynamics with LLM-based Multi-Agent Systems},
+  author       = {Yue, Ling and Nithin Somasekharan, Nithin and Zhang, Tingwen and Cao, Yadi and Chen, Zhangze and Di, Shimin},
+  year         = {2026},
+  month        = feb,
+  howpublished = {Research Square},
+  note         = {Preprint (Version 1)},
+  doi          = {10.21203/rs.3.rs-8629022/v1},
+  url          = {https://doi.org/10.21203/rs.3.rs-8629022/v1}
 }
 
 @article{somasekharan2026cfdllmbench,
@@ -413,6 +410,20 @@ If you use Foam-Agent in your research, please cite our paper:
     year={2026},
     url={https://openreview.net/forum?id=kTcH1MnkjY},
     note={}
+}
+
+@article{yue2025foamagent,
+  title={Foam-Agent 2.0: An End-to-End Composable Multi-Agent Framework for Automating CFD Simulation in OpenFOAM},
+  author={Yue, Ling and Somasekharan, Nithin and Zhang, Tingwen and Cao, Yadi and Pan, Shaowu},
+  journal={arXiv preprint arXiv:2509.18178},
+  year={2025}
+}
+
+@article{yue2025foam,
+  title={Foam-Agent: Towards Automated Intelligent CFD Workflows},
+  author={Yue, Ling and Somasekharan, Nithin and Cao, Yadi and Pan, Shaowu},
+  journal={arXiv preprint arXiv:2505.04997},
+  year={2025}
 }
 
 ```
