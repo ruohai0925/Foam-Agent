@@ -406,7 +406,7 @@ If you use Foam-Agent in your research, please cite our paper:
   year={2025}
 }
 
-@article{somasekharan2025cfdllmbench,
+@article{somasekharan2026cfdllmbench,
     title={CFDLLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
     author={Somasekharan, Nithin and Yue, Ling and Cao, Yadi and Li, Weichao and Emami, Patrick and Bhargav, Pochinapeddi Sai and Acharya, Anurag and Xie, Xingyu and Pan, Shaowu},
     journal={Journal of Data-centric Machine Learning Research},
