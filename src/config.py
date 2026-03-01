@@ -19,6 +19,10 @@ class Config:
     # - "sequential_dependency": generate files sequentially; use already-generated files as context to enforce consistency.
     # - "parallel_no_context": generate files in parallel without cross-file context (faster, may need more reviewer iterations).
     input_writer_generation_mode: str = "sequential_dependency"
+    # Optional: reuse previously generated files by copying from this directory.
+    # If set, InputWriter will check <reuse_generated_dir>/<folder>/<file> first.
+    # When present, it will copy into the current case_dir and skip LLM generation.
+    reuse_generated_dir: str = ""
     # LLM backend:
     # - "openai": OpenAI Platform usage-based (API key)
     # - "openai-codex": ChatGPT/Codex subscription sign-in (Codex auth cache)
