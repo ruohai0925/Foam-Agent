@@ -1,6 +1,11 @@
 # Exclude runs directory (can be very large)
 runs/
 
+# Exclude generated outputs (often large)
+output/
+logs/
+.venv/
+
 # Exclude Python cache files
 __pycache__/
 *.py[cod]
