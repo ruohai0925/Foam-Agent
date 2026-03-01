@@ -38,7 +38,7 @@ echo "To run Foam-Agent:"
 echo "  python foambench_main.py --output ./output --prompt_path ./user_requirement.txt"
 echo ""
 if [ -n "$OPENAI_API_KEY" ]; then
-    echo "OPENAI_API_KEY: ${OPENAI_API_KEY:0:20}... (set)"
+    echo "OPENAI_API_KEY: (set)"
 else
     echo "OPENAI_API_KEY: (not set)"
 fi

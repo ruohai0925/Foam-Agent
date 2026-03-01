@@ -58,6 +58,7 @@ RUN apt-get update \
     && apt-get install -y \
         libboost-all-dev \
         ca-certificates \
+        git \
     && rm -rf /var/lib/apt/lists/*
 
 # Environment variables in a FoamAgent container
