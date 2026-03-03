@@ -1,7 +1,7 @@
 # Foam-Agent
 
 <p align="center">
-  <img src="overview.png" alt="Foam-Agent System Architecture" width="600">
+  <img src="overview.png" alt="Foam-Agent System Architecture" width="800">
 </p>
 
 <p align="center">
@@ -498,3 +498,7 @@ If you use Foam-Agent in your research, please cite our paper:
 }
 
 ```
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=csml-rpi/Foam-Agent&type=timeline&legend=top-left)](https://www.star-history.com/#csml-rpi/Foam-Agent&type=timeline&legend=top-left)
