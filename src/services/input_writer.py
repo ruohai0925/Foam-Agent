@@ -1,7 +1,8 @@
 import os
 import re
 from typing import Dict, List, Any, Optional
-from utils import save_file, parse_context, retrieve_faiss, FoamPydantic, FoamfilePydantic, scan_case_directory, read_case_foamfiles
+import shutil
+from utils import save_file, parse_context, retrieve_faiss, FoamPydantic, FoamfilePydantic, scan_case_directory, read_case_foamfiles, read_file
 from . import global_llm_service
 
 
@@ -30,6 +31,7 @@ def initial_write(
     database_path: str = "",
     searchdocs: int = 2,
     similar_case_advice: Optional[Any] = None,
+    reuse_generated_dir: str = "",
 ) -> Dict[str, Any]:
     """
     Generate OpenFOAM files from scratch based on user requirements and subtasks.
@@ -151,8 +153,19 @@ def initial_write(
         if not file_name or not folder_name:
             raise ValueError(f"Invalid subtask format: {subtask}")
 
+        # Target output path (this run)
         file_path = os.path.join(case_dir, folder_name, file_name)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        # Optional reuse: if a pre-generated file exists, copy it into output and
+        # treat it as a written file (also included in context for subsequent generations).
+        if reuse_generated_dir:
+            reuse_src = os.path.join(reuse_generated_dir, folder_name, file_name)
+            if os.path.exists(reuse_src):
+                print(f"Reusing generated file: {reuse_src}")
+                shutil.copy2(reuse_src, file_path)
+                reused_content = read_file(reuse_src)
+                return FoamfilePydantic(file_name=file_name, folder_name=folder_name, content=reused_content)
 
         code_user_prompt, code_system_prompt = _build_prompts(file_name, folder_name, written_files_ctx)
 

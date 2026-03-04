@@ -1,7 +1,7 @@
 # Foam-Agent
 
 <p align="center">
-  <img src="overview.png" alt="Foam-Agent System Architecture" width="600">
+  <img src="overview.png" alt="Foam-Agent System Architecture" width="800">
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@ Our framework introduces three key innovations:
 
 * **End-to-End Simulation Automation**: Foam-Agent manages the full simulation pipeline, including advanced pre-processing with a versatile Meshing Agent that handles external mesh files and generates new geometries via **Gmsh**, automatic generation of HPC submission scripts, and post-simulation visualization via **ParaView/PyVista**.
 * **High-Fidelity Configuration**: We use a Retrieval-Augmented Generation (RAG) system based on a hierarchical index of case metadata. Generation proceeds in a dependency-aware order, ensuring consistency and accuracy across all configuration files.
-* **Composable Service Architecture**: The framework exposes its core functions as discrete, callable tools using a Model Context Protocol (MCP). This allows for flexible integration with other agentic systems for more complex or exploratory workflows. Code will be released soon.
+* **Composable Service Architecture**: The framework exposes its core functions as discrete, callable tools using a Model Context Protocol (MCP). This allows for flexible integration with other agentic systems for more complex or exploratory workflows.
 
 ## Features
 ### 🔍 **Enhanced Retrieval System**
@@ -48,7 +48,7 @@ Our framework introduces three key innovations:
 python foambench_main.py --output ./output --prompt_path ./user_req_tandem_wing.txt --custom_mesh_path ./tandem_wing.msh
 ```
 
-**Example Mesh File:** The `geometry.msh` file in this repository is taken from the [tandem wing tutorial](https://github.com/openfoamtutorials/tandem_wing) and demonstrates a 3D tandem wing simulation with NACA 0012 airfoils.
+**Example Mesh File:** The `tandem_wing.msh` file in this repository is taken from the [tandem wing tutorial](https://github.com/openfoamtutorials/tandem_wing) and demonstrates a 3D tandem wing simulation with NACA 0012 airfoils.
 
 **Requirements Format:** In your `user_req_tandem_wing.txt`, describe the boundary conditions and physical parameters for your custom mesh. The agent will automatically detect the mesh type and generate appropriate OpenFOAM configuration files.
 
@@ -81,9 +81,29 @@ Foam-Agent is fully pre-installed in the Docker image `leoyue123/foamagent`. Thi
 ```bash
 docker pull leoyue123/foamagent
 ```
-If you prefer a stable version, please check the tags, and do
+
+If you want a specific (stable) release, pull a tagged image instead of `latest` (recommended):
+
 ```bash
-git checkout v1.1.0
+docker pull leoyue123/foamagent:<tag>
+```
+
+For example (replace with the tag you want):
+
+```bash
+docker pull leoyue123/foamagent:v2.0.0
+```
+
+> Note: `git checkout <tag>` applies to the **source code repository** (manual install / building from source), not to `docker pull`.
+
+#### 1.2 Start a container
+
+```bash
+docker run -it \
+  -e OPENAI_API_KEY=your-key-here \
+  -p 7860:7860 \
+  --name foamagent \
+  leoyue123/foamagent
 ```
 
 Inside the container you automatically get:
@@ -183,6 +203,57 @@ docker run -it \
 ### 2. Configuring LLM provider and model
 
 Foam-Agent selects the LLM backend and model from `src/config.py`. Inside the container, this file is at `/home/openfoam/Foam-Agent/src/config.py`.
+
+**Recommended (no API key): ChatGPT/Codex OAuth sign-in**
+
+If you have a ChatGPT/Codex subscription, you can run Foam-Agent via the **Codex OAuth** backend instead of a usage-based API key.
+This avoids setting `OPENAI_API_KEY` and reduces the risk of accidentally leaking API keys in shell history, screenshots, or logs.
+
+In plain words:
+- **OAuth sign-in** = you sign in to your ChatGPT/Codex account once on your **host machine**, and a local token file is created.
+- Foam-Agent can then reuse that token file (via a read-only mount) to call the model.
+
+**Step-by-step (host → Docker):**
+
+1) **Install the Codex CLI on your host machine**
+   - Follow the official Codex CLI installation instructions for your OS.
+
+2) **Login with ChatGPT (creates a local OAuth cache)**
+
+```bash
+codex login
+```
+
+Choose **“Sign in with ChatGPT”** when prompted.
+
+3) **Verify the token cache file exists** (typical location)
+
+```bash
+ls -lah ~/.codex/auth.json
+```
+
+If you do not see the file, your Codex CLI may be using an OS keychain instead of a file cache.
+In that case, configure Codex CLI to use file-based storage so that `~/.codex/auth.json` is created.
+
+4) **Run the Foam-Agent Docker container and mount the token file read-only**
+
+**Docker example (recommended):**
+
+```bash
+docker run -it \
+  -e FOAMAGENT_MODEL_PROVIDER=openai-codex \
+  -e FOAMAGENT_MODEL_VERSION=gpt-5.3-codex \
+  -v ~/.codex/auth.json:/root/.codex/auth.json:ro \
+  -p 7860:7860 \
+  --name foamagent \
+  leoyue123/foamagent
+```
+
+If your Codex OAuth cache lives elsewhere, mount that path instead:
+- `$CODEX_HOME/auth.json`
+- `~/.codex/auth.json`
+- `~/.clawdbot/agents/main/agent/auth-profiles.json`
+
 
 ```python
 from dataclasses import dataclass
@@ -392,11 +463,24 @@ python foambench_main.py \
 ## Citation
 If you use Foam-Agent in your research, please cite our paper:
 ```bibtex
-@article{yue2025foam,
-  title={Foam-Agent: Towards Automated Intelligent CFD Workflows},
-  author={Yue, Ling and Somasekharan, Nithin and Cao, Yadi and Pan, Shaowu},
-  journal={arXiv preprint arXiv:2505.04997},
-  year={2025}
+@article{yue2026foam,
+  title        = {Automating Computational Fluid Dynamics with LLM-based Multi-Agent Systems},
+  author       = {Yue, Ling and Nithin Somasekharan, Nithin and Zhang, Tingwen and Cao, Yadi and Chen, Zhangze and Di, Shimin},
+  year         = {2026},
+  month        = feb,
+  howpublished = {Research Square},
+  note         = {Preprint (Version 1)},
+  doi          = {10.21203/rs.3.rs-8629022/v1},
+  url          = {https://doi.org/10.21203/rs.3.rs-8629022/v1}
+}
+
+@article{somasekharan2026cfdllmbench,
+    title={CFDLLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
+    author={Somasekharan, Nithin and Yue, Ling and Cao, Yadi and Li, Weichao and Emami, Patrick and Bhargav, Pochinapeddi Sai and Acharya, Anurag and Xie, Xingyu and Pan, Shaowu},
+    journal={Journal of Data-centric Machine Learning Research},
+    year={2026},
+    url={https://openreview.net/forum?id=kTcH1MnkjY},
+    note={}
 }
 
 @article{yue2025foamagent,
@@ -406,12 +490,15 @@ If you use Foam-Agent in your research, please cite our paper:
   year={2025}
 }
 
-@article{somasekharan2025cfdllmbench,
-    title={CFDLLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
-    author={Somasekharan, Nithin and Yue, Ling and Cao, Yadi and Li, Weichao and Emami, Patrick and Bhargav, Pochinapeddi Sai and Acharya, Anurag and Xie, Xingyu and Pan, Shaowu},
-    journal={Journal of Data-centric Machine Learning Research},
-    year={2025},
-    url={https://openreview.net/forum?id=kTcH1MnkjY}
+@article{yue2025foam,
+  title={Foam-Agent: Towards Automated Intelligent CFD Workflows},
+  author={Yue, Ling and Somasekharan, Nithin and Cao, Yadi and Pan, Shaowu},
+  journal={arXiv preprint arXiv:2505.04997},
+  year={2025}
 }
 
 ```
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=csml-rpi/Foam-Agent&type=timeline&legend=top-left)](https://www.star-history.com/#csml-rpi/Foam-Agent&type=timeline&legend=top-left)

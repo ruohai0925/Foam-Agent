@@ -154,6 +154,15 @@ if __name__ == "__main__":
         default=None,
         help="Path to custom mesh file (e.g., .msh, .stl, .obj). If not provided, no custom mesh will be used.",
     )
+    parser.add_argument(
+        "--reuse_generated_dir",
+        type=str,
+        default="",
+        help=(
+            "Path to a directory containing previously generated OpenFOAM files. "
+            "If a file exists at <reuse_generated_dir>/<folder>/<file>, Foam-Agent will copy it into the current output and skip generation for that file."
+        ),
+    )
     
     args = parser.parse_args()
     print(f"args: {args}")
@@ -165,6 +174,9 @@ if __name__ == "__main__":
 
     if args.output_dir != "":
         config.case_dir = args.output_dir
+
+    if args.reuse_generated_dir:
+        config.reuse_generated_dir = args.reuse_generated_dir
     
     with open(args.prompt_path, 'r') as f:
         user_requirement = f.read()
