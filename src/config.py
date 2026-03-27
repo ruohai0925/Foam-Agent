@@ -66,17 +66,17 @@ class Config:
             allowed = {"openai", "openai-codex", "ollama", "bedrock", "anthropic"}
             if provider_env in allowed:
                 self.model_provider = provider_env
-                print(f"[Config] model_provider={self.model_provider} (env:{provider_key})")
+                print(f"<config>model_provider={self.model_provider} (env:{provider_key})</config>")
             else:
                 print(
-                    f"[Config] model_provider={self.model_provider} (default; invalid env:{provider_key}={provider_env!r})"
+                    f"<config>model_provider={self.model_provider} (default; invalid env:{provider_key}={provider_env!r})</config>"
                 )
         else:
-            print(f"[Config] model_provider={self.model_provider} (default)")
+            print(f"<config>model_provider={self.model_provider} (default)</config>")
 
         version_env = _env_nonempty(version_key)
         if version_env is not None:
             self.model_version = version_env
-            print(f"[Config] model_version={self.model_version} (env:{version_key})")
+            print(f"<config>model_version={self.model_version} (env:{version_key})</config>")
         else:
-            print(f"[Config] model_version={self.model_version} (default)")
+            print(f"<config>model_version={self.model_version} (default)</config>")

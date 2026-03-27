@@ -11,6 +11,7 @@ from services.run_hpc import (
     create_slurm_script_with_error_context,
     create_slurm_script,
 )
+from logger import log_review
 
 
 def hpc_runner_node(state):
@@ -25,8 +26,8 @@ def hpc_runner_node(state):
     max_loop = config.max_loop
     current_attempt = 0
     
-    print(f"============================== HPC Runner ==============================")
-    
+    print("<hpc_runner>")
+
     # Clean up any previous log and error files.
     out_file = os.path.join(case_dir, "Allrun.out")
     err_file = os.path.join(case_dir, "Allrun.err")
@@ -38,7 +39,7 @@ def hpc_runner_node(state):
     # Extract cluster information using service
     print("Extracting cluster information from user requirement...")
     cluster_info = extract_cluster_info_from_requirement(state["user_requirement"], case_dir)
-    print(f"Cluster info extracted: {cluster_info}")
+    print(f"<cluster_info>{cluster_info}</cluster_info>")
     
     # Submit the job with retry logic
     while current_attempt < max_loop:
@@ -80,6 +81,8 @@ def hpc_runner_node(state):
             else:
                 print(f"Maximum attempts ({max_loop}) reached. Job submission failed.")
                 error_logs = [f"Job submission failed after {max_loop} attempts. Last error: {error_msg}"]
+                log_review(str(error_logs), "error_logs")
+                print("</hpc_runner>")
                 return {
                     **state,
                     "error_logs": error_logs,
@@ -93,6 +96,8 @@ def hpc_runner_node(state):
     status, status_success, status_error = wait_for_job(job_id)
     if not status_success:
         error_logs = [f"Status check failed: {status_error}"]
+        log_review(str(error_logs), "error_logs")
+        print("</hpc_runner>")
         return {
             **state,
             "error_logs": error_logs,
@@ -100,10 +105,12 @@ def hpc_runner_node(state):
             "cluster_info": cluster_info,
             "slurm_script_path": script_path
         }
-    print(f"Job finished with status: {status}")
+    print(f"<job_status>{status}</job_status>")
 
     if status != "COMPLETED":
         error_logs = [f"HPC job finished with non-success status: {status}"]
+        log_review(str(error_logs), "error_logs")
+        print("</hpc_runner>")
         return {
             **state,
             "error_logs": error_logs,
@@ -118,10 +125,12 @@ def hpc_runner_node(state):
     
     if len(error_logs) > 0:
         print("Errors detected in the HPC Allrun execution.")
-        print(error_logs)
+        log_review(str(error_logs), "error_logs")
     else:
         print("HPC Allrun executed successfully without errors.")
-    
+
+    print("</hpc_runner>")
+
     # Return updated state
     return {
         **state,

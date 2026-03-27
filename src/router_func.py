@@ -111,13 +111,13 @@ def route_after_planner(state: GraphState):
     """
     mesh_type = state.get("mesh_type", "standard_mesh")
     if mesh_type == "custom_mesh":
-        print("Router: Custom mesh requested. Routing to meshing node.")
+        print("<router>Custom mesh requested. Routing to meshing node.</router>")
         return "meshing"
     elif mesh_type == "gmsh_mesh":
-        print("Router: GMSH mesh requested. Routing to meshing node.")
+        print("<router>GMSH mesh requested. Routing to meshing node.</router>")
         return "meshing"
     else:
-        print("Router: Standard mesh generation. Routing to input_writer node.")
+        print("<router>Standard mesh generation. Routing to input_writer node.</router>")
         return "input_writer"
 
 
@@ -132,10 +132,10 @@ def route_after_input_writer(state: GraphState):
         state["requires_hpc"] = requires_hpc
 
     if requires_hpc:
-        print("Router: HPC run requested. Routing to hpc_runner node.")
+        print("<router>HPC run requested. Routing to hpc_runner node.</router>")
         return "hpc_runner"
     else:
-        print("Router: Local run requested. Routing to local_runner node.")
+        print("<router>Local run requested. Routing to local_runner node.</router>")
         return "local_runner"
 
 def route_after_runner(state: GraphState):
@@ -155,7 +155,7 @@ def route_after_reviewer(state: GraphState):
     loop_count = state.get("loop_count", 0)
     max_loop = state["config"].max_loop
     if loop_count >= max_loop:
-        print(f"Maximum loop count ({max_loop}) reached. Ending workflow.")
+        print(f"<router>Maximum loop count ({max_loop}) reached. Ending workflow.</router>")
         state["termination_reason"] = "max_review_loop_reached"
         requires_visualization = state.get("requires_visualization")
         if requires_visualization is None:
@@ -163,5 +163,5 @@ def route_after_reviewer(state: GraphState):
             state["requires_visualization"] = requires_visualization
         return "visualization" if requires_visualization else END
 
-    print(f"Loop {loop_count}: Continuing to fix errors.")
+    print(f"<router>Loop {loop_count}: Continuing to fix errors.</router>")
     return "input_writer"

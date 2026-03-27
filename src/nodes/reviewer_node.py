@@ -2,6 +2,7 @@
 from pydantic import BaseModel, Field
 from typing import List
 from services.review import review_error_logs, generate_rewrite_plan
+from logger import log_review
 
 
 def reviewer_node(state):
@@ -9,11 +10,15 @@ def reviewer_node(state):
     Reviewer node: Reviews the error logs and provides analysis and suggestions
     for fixing the errors. This node only focuses on analysis, not file modification.
     """
-    print(f"============================== Reviewer Analysis ==============================")
+    print("<reviewer>")
     if len(state["error_logs"]) == 0:
         print("No error to review.")
+        print("</reviewer>")
         return state
-    
+
+    # Log error logs to review.log
+    log_review(str(state["error_logs"]), "error_logs")
+
     # Stateless review via service
     history_text = state.get("history_text") or []
     review_content, updated_history = review_error_logs(
@@ -25,7 +30,7 @@ def reviewer_node(state):
         history_text=history_text,
     )
 
-    print(review_content)
+    log_review(review_content, "review_analysis")
 
     rewrite_plan = generate_rewrite_plan(
         foamfiles=state.get('foamfiles'),
@@ -33,7 +38,9 @@ def reviewer_node(state):
         review_analysis=review_content,
         user_requirement=state.get('user_requirement', ''),
     )
-    print(f"Rewrite plan: {rewrite_plan}")
+    log_review(str(rewrite_plan), "rewrite_plan")
+
+    print("</reviewer>")
 
     return {
         "history_text": updated_history,

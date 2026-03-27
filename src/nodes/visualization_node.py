@@ -36,11 +36,12 @@ def visualization_node(state):
     user_requirement = state.get("user_requirement", "")
     case_dir = state.get("case_dir")
 
-    print("============================== Visualization (PyVista) ==============================")
+    print("<visualization>")
 
     # Note: routing logic should decide whether we reach this node.
 
     if not case_dir:
+        print("</visualization>")
         return {
             **state,
             "plot_configs": [],
@@ -52,6 +53,7 @@ def visualization_node(state):
     case_dir = os.path.abspath(case_dir)
     if not os.path.exists(case_dir):
         print(f"Case directory does not exist: {case_dir}")
+        print("</visualization>")
         return {
             **state,
             "plot_configs": [],
@@ -95,6 +97,7 @@ def visualization_node(state):
                 "output_path": output_image,
             }
         ]
+        print("</visualization>")
         return {
             **state,
             "plot_configs": plot_configs,
@@ -142,6 +145,7 @@ def visualization_node(state):
                     "output_path": output_image,
                 }
             ]
+            print("</visualization>")
             return {
                 **state,
                 "plot_configs": plot_configs,
@@ -183,6 +187,7 @@ def visualization_node(state):
                         "output_path": output_image,
                     }
                 ]
+                print("</visualization>")
                 return {
                     **state,
                     "plot_configs": plot_configs,
@@ -205,6 +210,8 @@ def visualization_node(state):
             error_logs.extend(errs)
 
     error_message = f"Visualization failed after {max_loop} LLM attempts"
+    print(f"<visualization_error>{error_message}</visualization_error>")
+    print("</visualization>")
     return {
         **state,
         "plot_configs": [],

@@ -15,11 +15,12 @@ from nodes.reviewer_node import reviewer_node
 from nodes.visualization_node import visualization_node
 from nodes.hpc_runner_node import hpc_runner_node
 from router_func import (
-    route_after_planner, 
-    route_after_input_writer, 
-    route_after_runner, 
+    route_after_planner,
+    route_after_input_writer,
+    route_after_runner,
     route_after_reviewer
 )
+from logger import close_logging
 import json
 
 def create_foam_agent_graph() -> StateGraph:
@@ -94,9 +95,9 @@ def initialize_state(user_requirement: str, config: Config, custom_mesh_path: Op
         termination_reason=None
     )
     if custom_mesh_path:
-        print(f"Custom mesh path: {custom_mesh_path}")
+        print(f"<custom_mesh_path>{custom_mesh_path}</custom_mesh_path>")
     else:
-        print("No custom mesh path provided.")
+        print("<custom_mesh_path>None</custom_mesh_path>")
     return state
 
 def main(user_requirement: str, config: Config, custom_mesh_path: Optional[str] = None):
@@ -109,27 +110,27 @@ def main(user_requirement: str, config: Config, custom_mesh_path: Optional[str] 
     # Initialize the state
     initial_state = initialize_state(user_requirement, config, custom_mesh_path)
     
-    print("Starting Foam-Agent...")
-    
+    print("<workflow_start>Starting Foam-Agent...</workflow_start>")
+
     # Invoke the graph
     try:
         result = app.invoke(initial_state, config={"recursion_limit": config.recursion_limit})
 
         termination_reason = result.get("termination_reason")
         if termination_reason == "max_review_loop_reached":
-            print("Workflow finished after reaching the maximum review loop limit.")
+            print("<workflow_end>Workflow finished after reaching the maximum review loop limit.</workflow_end>")
         else:
-            print("Workflow completed successfully!")
+            print("<workflow_end>Workflow completed successfully!</workflow_end>")
 
         # Print final statistics
         if result.get("llm_service"):
             result["llm_service"].print_statistics()
-        
-        # print(f"Final state: {result}")
-        
+
     except Exception as e:
-        print(f"Workflow failed with error: {e}")
+        print(f"<workflow_error>{e}</workflow_error>")
         raise
+    finally:
+        close_logging()
 
 if __name__ == "__main__":
     # python main.py

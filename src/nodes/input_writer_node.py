@@ -51,9 +51,10 @@ def input_writer_node(state):
 
 def _rewrite_mode(state):
     """Rewrite mode: delegate to service to modify files based on review analysis."""
-    print(f"============================== Rewrite Mode ==============================")
+    print("<input_writer mode=\"rewrite\">")
     if not state.get("review_analysis"):
         print("No review analysis available for rewrite mode.")
+        print("</input_writer>")
         return state
     out = rewrite_files(
         case_dir=state["case_dir"],
@@ -64,13 +65,14 @@ def _rewrite_mode(state):
         foamfiles=state.get("foamfiles"),
         dir_structure=state.get("dir_structure", {}),
     )
+    print("</input_writer>")
     return out
 
 def _initial_write_mode(state):
     """
     Initial write mode: Generate files from scratch
     """
-    print(f"============================== Initial Write Agent ==============================")
+    print("<input_writer mode=\"initial\">")
     
     config = state["config"]
     write_out = initial_write(
@@ -100,6 +102,8 @@ def _initial_write_mode(state):
         mesh_type=mesh_type,
         mesh_commands=mesh_commands,
     )
+
+    print("</input_writer>")
 
     return {
         "dir_structure": dir_structure,

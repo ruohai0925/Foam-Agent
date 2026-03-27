@@ -81,7 +81,7 @@ def initial_write(
         ... )
         >>> print(f"Generated {len(result['dir_structure'])} directories")
     """
-    print(f"============================== Initial Write Mode ==============================")
+    print("<initial_write_service>")
 
     if generation_mode not in {"sequential_dependency", "parallel_no_context"}:
         raise ValueError(
@@ -191,7 +191,7 @@ def initial_write(
         dir_structure[folder_name].append(file_name)
 
     if generation_mode == "parallel_no_context":
-        print("Input writer mode: parallel_no_context (no cross-file context)")
+        print("<generation_mode>parallel_no_context (no cross-file context)</generation_mode>")
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         # Parallelize all file generations; keep output order consistent with sorted subtasks.
@@ -208,12 +208,11 @@ def initial_write(
         written_files.extend([r for r in results if r is not None])
 
     else:
-        print("Input writer mode: sequential_dependency")
+        print("<generation_mode>sequential_dependency</generation_mode>")
         for subtask in subtasks:
-            print(f"subtask: {subtask}")
             file_name = subtask["file_name"]
             folder_name = subtask["folder_name"]
-            print(f"Generating file: {file_name} in folder: {folder_name}")
+            print(f"<generating_file>{file_name} in folder: {folder_name}</generating_file>")
             foamfile = _generate_one(subtask, written_files)
             written_files.append(foamfile)
     
@@ -223,6 +222,7 @@ def initial_write(
         written_files.append(FoamfilePydantic(file_name="Allrun", folder_name=case_dir, content=allrun_result["allrun_script"]))
     
     foamfiles = FoamPydantic(list_foamfile=written_files)
+    print("</initial_write_service>")
     return {"dir_structure": dir_structure, "foamfiles": foamfiles}
 
 

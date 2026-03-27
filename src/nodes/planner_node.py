@@ -9,6 +9,7 @@ from utils import save_file, retrieve_faiss, parse_directory_structure, LLMServi
 from services.plan import generate_simulation_plan
 from services import global_llm_service
 from router_func import llm_requires_custom_mesh, llm_requires_hpc, llm_requires_visualization
+from logger import setup_logging
 
 class CaseSummaryPydantic(BaseModel):
     case_name: str = Field(description="name of the case")
@@ -56,22 +57,26 @@ def planner_node(state):
     subtasks = plan_data["subtasks"]
     similar_case_advice = plan_data.get("similar_case_advice")
     
-    print(f"Parsed case name: {case_name}")
-    print(f"Parsed case domain: {case_domain}")
-    print(f"Parsed case category: {case_category}")
-    print(f"Parsed case solver: {case_solver}")
-    print(f"Created case directory: {case_dir}")
-    print(f"Retrieved similar case structure: {dir_structure_reference}")
-    print(f"Generated {len(subtasks)} subtasks.")
-    if similar_case_advice:
-        print(f"Similar case advice: {similar_case_advice}")
-
     # Handle case directory creation/cleanup
     if os.path.exists(case_dir):
         print(f"Warning: Case directory {case_dir} already exists. Overwriting.")
         shutil.rmtree(case_dir)
     os.makedirs(case_dir)
-    
+
+    # Initialize logging now that case_dir exists
+    setup_logging(case_dir)
+
+    print("<planner>")
+    print(f"<case_name>{case_name}</case_name>")
+    print(f"<case_domain>{case_domain}</case_domain>")
+    print(f"<case_category>{case_category}</case_category>")
+    print(f"<case_solver>{case_solver}</case_solver>")
+    print(f"<case_dir>{case_dir}</case_dir>")
+    print(f"<similar_case_structure>{dir_structure_reference}</similar_case_structure>")
+    print(f"<subtask_count>{len(subtasks)} subtasks generated.</subtask_count>")
+    if similar_case_advice:
+        print(f"<similar_case_advice>{similar_case_advice}</similar_case_advice>")
+
     # Save reference file
     save_file(case_path_reference, f"{faiss_detailed}\n\n\n{allrun_reference}")
 
@@ -79,20 +84,19 @@ def planner_node(state):
     mesh_type = llm_requires_custom_mesh(state)
     if mesh_type == 1:
         mesh_type_value = "custom_mesh"
-        print("Planner determined: Custom mesh requested.")
+        print("<mesh_type>custom_mesh - Custom mesh requested.</mesh_type>")
     elif mesh_type == 2:
         mesh_type_value = "gmsh_mesh"
-        print("Planner determined: GMSH mesh requested.")
+        print("<mesh_type>gmsh_mesh - GMSH mesh requested.</mesh_type>")
     else:
         mesh_type_value = "standard_mesh"
-        print("Planner determined: Standard mesh generation.")
-    
-    print(f"Planner set mesh_type to: {mesh_type_value}")
+        print("<mesh_type>standard_mesh - Standard mesh generation.</mesh_type>")
 
     # Cache routing decisions to avoid repeated LLM calls in routing.
     requires_hpc = llm_requires_hpc(state)
     requires_visualization = llm_requires_visualization(state)
-    print(f"Planner set requires_hpc={requires_hpc}, requires_visualization={requires_visualization}")
+    print(f"<routing_decisions>requires_hpc={requires_hpc}, requires_visualization={requires_visualization}</routing_decisions>")
+    print("</planner>")
 
     # Return updated state
     case_info = f"case name: {case_name}\ncase domain: {case_domain}\ncase category: {case_category}\ncase solver: {case_solver}"
