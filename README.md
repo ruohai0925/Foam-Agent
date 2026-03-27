@@ -8,54 +8,101 @@
     <em>An End-to-End Composable Multi-Agent Framework for Automating CFD Simulation in OpenFOAM</em>
 </p>
 
-You can visit https://deepwiki.com/csml-rpi/Foam-Agent for a comprehensive introduction and to ask any questions interactively.
+**Foam-Agent** automates the entire **OpenFOAM**-based CFD simulation workflow from a single natural language prompt. It manages meshing, case setup, execution, error correction, and post-processing — dramatically lowering the expertise barrier for Computational Fluid Dynamics. Evaluated on [FoamBench](https://arxiv.org/abs/2509.20374) with 110 simulation tasks, our framework achieves an **100% success rate** with Claude Opus 4.6.
 
-**Foam-Agent** is a multi-agent framework that automates the entire **OpenFOAM**-based CFD simulation workflow from a single natural language prompt. By managing the full pipeline—from meshing and case setup to execution and post-processing—Foam-Agent dramatically lowers the expertise barrier for Computational Fluid Dynamics. Evaluated on [FoamBench](https://arxiv.org/abs/2509.20374) of 110 simulation tasks, our framework achieves an **88.2% success rate**, demonstrating how specialized multi-agent systems can democratize complex scientific computing.
+Visit [deepwiki.com/csml-rpi/Foam-Agent](https://deepwiki.com/csml-rpi/Foam-Agent) for a comprehensive introduction and to ask questions interactively.
 
-## Key Innovations
+## Key Features
 
-Our framework introduces three key innovations:
+- **End-to-End Automation**: From meshing (including external Gmsh `.msh` files) to HPC job submission to ParaView/PyVista visualization — one prompt does it all.
+- **Multi-Agent Workflow**: Architect, Input Writer, Runner, and Reviewer agents collaborate through a LangGraph pipeline with automatic error correction (up to 25 iterations).
+- **RAG-Enhanced Generation**: Hierarchical FAISS indices built from OpenFOAM tutorials provide context-specific retrieval for accurate configuration file generation.
+- **Composable Service Architecture**: Core functions are exposed as MCP tools, enabling integration with Claude Code, Cursor, and other agentic systems.
 
-* **End-to-End Simulation Automation**: Foam-Agent manages the full simulation pipeline, including advanced pre-processing with a versatile Meshing Agent that handles external mesh files and generates new geometries via **Gmsh**, automatic generation of HPC submission scripts, and post-simulation visualization via **ParaView/PyVista**.
-* **High-Fidelity Configuration**: We use a Retrieval-Augmented Generation (RAG) system based on a hierarchical index of case metadata. Generation proceeds in a dependency-aware order, ensuring consistency and accuracy across all configuration files.
-* **Composable Service Architecture**: The framework exposes its core functions as discrete, callable tools using a Model Context Protocol (MCP). This allows for flexible integration with other agentic systems for more complex or exploratory workflows.
+## Quick Start
 
-## Features
-### 🔍 **Enhanced Retrieval System**
-- **Hierarchical retrieval** covering case files, directory structures, and dependencies
-- **Specialized vector index architecture** for improved information retrieval
-- **Context-specific knowledge retrieval** at different simulation stages
+### 1. Pull and run the Docker image
 
-### 🤖 **Multi-Agent Workflow Optimization**
-- **Architect Agent** interprets requirements and plans file structures
-- **Input Writer Agent** generates configuration files with consistency management
-- **Runner Agent** executes simulations and captures outputs
-- **Reviewer Agent** analyzes errors and proposes corrections
-
-### 🛠️ **Intelligent Error Correction**
-- **Error pattern recognition** for common simulation failures
-- **Automatic diagnosis and resolution** of configuration issues
-- **Iterative refinement process** that progressively improves simulation configurations
-
-### 📐 **External Mesh File Support**
-- **Custom mesh integration** with GMSH `.msh` files
-- **Boundary condition specification** through natural language requirements
-- **Currently supports** GMSH ASCII 2.2 format mesh files
-- **Seamless workflow** from mesh import to simulation execution
-
-**Example Usage:**
 ```bash
-python foambench_main.py --output ./output --prompt_path ./user_req_tandem_wing.txt --custom_mesh_path ./tandem_wing.msh
+docker run -it \
+  -e OPENAI_API_KEY=your-key-here \
+  -p 7860:7860 \
+  --name foamagent \
+  leoyue123/foamagent
 ```
 
-**Example Mesh File:** The `tandem_wing.msh` file in this repository is taken from the [tandem wing tutorial](https://github.com/openfoamtutorials/tandem_wing) and demonstrates a 3D tandem wing simulation with NACA 0012 airfoils.
+The container comes with OpenFOAM v10, Conda, and all dependencies pre-installed.
 
-**Requirements Format:** In your `user_req_tandem_wing.txt`, describe the boundary conditions and physical parameters for your custom mesh. The agent will automatically detect the mesh type and generate appropriate OpenFOAM configuration files.
+> For a specific release: `docker pull leoyue123/foamagent:v2.0.0`
 
-## Getting Started
+### 2. Write your prompt
 
-**Recommended model for best results:** 
-We currently recommend **Anthropic Claude Opus 4.6** for the best performances.
+Edit `user_requirement.txt` inside the container:
+
+```text
+do a Reynolds-Averaged Simulation (RAS) pitzdaily simulation. Use PIMPLE algorithm.
+The domain is a 2D millimeter-scale channel geometry. Boundary conditions specify a
+fixed velocity of 10m/s at the inlet (left), zero gradient pressure at the outlet
+(right), and no-slip conditions for walls. Use timestep of 0.0001 and output every
+0.01. Finaltime is 0.3. use nu value of 1e-5.
+```
+
+### 3. Run
+
+```bash
+python foambench_main.py --output ./output --prompt_path ./user_requirement.txt
+```
+
+That's it. Foam-Agent will plan the case, generate all OpenFOAM files, run the simulation, and fix errors automatically.
+
+## Configuration
+
+All settings live in `src/config.py` with sensible defaults. Every setting can be overridden via environment variables — no need to edit files, especially useful for Docker and CI.
+
+### LLM Provider and Model
+
+| Environment Variable | Purpose | Allowed Values |
+|---|---|---|
+| `FOAMAGENT_MODEL_PROVIDER` | LLM backend | `openai`, `openai-codex`, `anthropic`, `bedrock`, `ollama` |
+| `FOAMAGENT_MODEL_VERSION` | Model identifier | e.g., `gpt-5-mini`, `gpt-5.3-codex`, `claude-opus-4-6` |
+
+Example:
+```bash
+docker run -it \
+  -e FOAMAGENT_MODEL_PROVIDER=anthropic \
+  -e ANTHROPIC_API_KEY=your-key-here \
+  -e FOAMAGENT_MODEL_VERSION=claude-opus-4-6 \
+  -p 7860:7860 \
+  leoyue123/foamagent
+```
+
+### Embedding Provider and Model
+
+| Environment Variable | Purpose | Allowed Values |
+|---|---|---|
+| `FOAMAGENT_EMBEDDING_PROVIDER` | Embedding backend | `openai`, `huggingface`, `ollama` |
+| `FOAMAGENT_EMBEDDING_MODEL` | Embedding model | e.g., `Qwen/Qwen3-Embedding-0.6B`, `text-embedding-3-small` |
+
+Defaults to `huggingface` with `Qwen/Qwen3-Embedding-0.6B` (runs locally, no API key needed).
+
+### API Keys
+
+| Variable | When needed |
+|---|---|
+| `OPENAI_API_KEY` | Using `openai` provider |
+| `ANTHROPIC_API_KEY` | Using `anthropic` provider |
+| AWS credentials | Using `bedrock` provider |
+
+### Input Writer Generation Mode
+
+Set in `src/config.py` via `input_writer_generation_mode`:
+
+| Mode | Behavior | Best for |
+|---|---|---|
+| `sequential_dependency` | Files generated in order with cross-file context | Expensive runs (HPC, long simulations) |
+| `parallel_no_context` | Files generated in parallel, no cross-file context | Fast local runs where retry is cheap |
+
+### Recommended Models
 
 | Framework | Model | Basic | Advanced |
 |---|---|---:|---:|
@@ -66,322 +113,42 @@ We currently recommend **Anthropic Claude Opus 4.6** for the best performances.
 | FoamAgent 2.0.0 (25 loops) | gpt-5.4 | 45.45% | 75.00% |
 | FoamAgent 2.0.0 (25 loops) | gpt-5.3-codex | 54.55% | 62.50% |
 
-### Choosing Input Writer generation mode (speed vs. first-pass success)
+We recommend **Anthropic Claude Opus 4.6** for best results.
 
-Foam-Agent supports two generation modes for the **Input Writer Agent** (case file creation). You can set it in `src/config.py`:
+## Advanced Usage
 
-- `input_writer_generation_mode = "sequential_dependency"`
-  - Generates files **sequentially** (ordered: `system` → `constant` → `0` → others).
-  - When enabled by the planner, later files may include previously generated files as context to enforce consistency.
-  - **Recommended when case evaluation is expensive** (e.g., HPC runs / long simulations), because it tends to reduce the number of fail→review→rewrite iterations.
+### Custom Mesh Files
 
-- `input_writer_generation_mode = "parallel_no_context"` (default)
-  - Generates files **in parallel** with **no cross-file context** (faster and cheaper prompts).
-  - **Recommended when case evaluation is cheap** (e.g., quick local test runs), where you can rely on the Reviewer/Rewrite loop to fix small inconsistencies.
-
-Rule of thumb:
-- Expensive-to-run cases → choose `sequential_dependency`.
-- Cheap-to-run cases (fast iteration) → choose `parallel_no_context`.
-
-
-### 1. Quick Start with Docker (Recommended)
-
-Foam-Agent is fully pre-installed in the Docker image `leoyue123/foamagent`. This is the easiest way to get an end-to-end OpenFOAM + Foam-Agent environment.
-
-#### 1.1 Pull the image
-
-```bash
-docker pull leoyue123/foamagent
-```
-
-If you want a specific (stable) release, pull a tagged image instead of `latest` (recommended):
-
-```bash
-docker pull leoyue123/foamagent:<tag>
-```
-
-For example (replace with the tag you want):
-
-```bash
-docker pull leoyue123/foamagent:v2.0.0
-```
-
-> Note: `git checkout <tag>` applies to the **source code repository** (manual install / building from source), not to `docker pull`.
-
-#### 1.2 Start a container
-
-```bash
-docker run -it \
-  -e OPENAI_API_KEY=your-key-here \
-  -p 7860:7860 \
-  --name foamagent \
-  leoyue123/foamagent
-```
-
-Inside the container you automatically get:
-- **OpenFOAM v10** installed and sourced
-- **Conda** initialized and the `FoamAgent` environment activated
-- **Working directory** set to `/home/openfoam/Foam-Agent`
-- **Database files** pre-initialized and ready to use
-
-#### 1.3 Prepare your `user_requirement.txt`
-
-- **Default location inside Docker**: `/home/openfoam/Foam-Agent/user_requirement.txt`
-- **Edit directly in the container** (example):
-  ```bash
-  nano user_requirement.txt
-  ```
-- **Or mount a prompt file from the host**:
-  ```bash
-  docker run -it \
-    -e OPENAI_API_KEY=your-key-here \
-    -p 7860:7860 \
-    -v /absolute/path/to/my_requirement.txt:/home/openfoam/Foam-Agent/user_requirement.txt \
-    --name foamagent \
-    leoyue123/foamagent
-  ```
-
-**Example content of `user_requirement.txt`:**
-
-```text
-do a Reynolds-Averaged Simulation (RAS) pitzdaily simulation. Use PIMPLE algorithm. The domain is a 2D millimeter-scale channel geometry. Boundary conditions specify a fixed velocity of 10m/s at the inlet (left), zero gradient pressure at the outlet (right), and no-slip conditions for walls. Use timestep of 0.0001 and output every 0.01. Finaltime is 0.3. use nu value of 1e-5.
-```
-
-#### 1.4 (Optional) Provide a custom mesh
-
-If you have a Gmsh `.msh` file on the host, mount it into the container and point Foam-Agent to it:
-
-```bash
-docker run -it \
-  -e OPENAI_API_KEY=your-key-here \
-  -p 7860:7860 \
-  -v /absolute/path/to/my_mesh.msh:/home/openfoam/Foam-Agent/my_mesh.msh \
-  --name foamagent \
-  leoyue123/foamagent
-```
-
-Then, inside the container, call:
+Foam-Agent supports external Gmsh `.msh` files (ASCII 2.2 format). Describe boundary conditions in your prompt and pass the mesh:
 
 ```bash
 python foambench_main.py \
   --output ./output \
-  --prompt_path ./user_requirement.txt \
-  --custom_mesh_path ./my_mesh.msh
+  --prompt_path ./user_req_tandem_wing.txt \
+  --custom_mesh_path ./tandem_wing.msh
 ```
 
-#### 1.5 Run a simulation inside Docker
-
-From `/home/openfoam/Foam-Agent` in the container:
-
-```bash
-# Basic run
-python foambench_main.py \
-  --output ./output \
-  --prompt_path ./user_requirement.txt
-
-# With a custom mesh (if provided)
-python foambench_main.py \
-  --output ./output \
-  --prompt_path ./user_requirement.txt \
-  --custom_mesh_path ./my_mesh.msh
-```
-
-To restart and reuse the same container later:
-
-```bash
-docker start -i foamagent
-```
-
-#### 1.6 (Optional) Build the image from source
-
-If you prefer to build the Docker image yourself from this repository:
-
-```bash
-git clone https://github.com/csml-rpi/Foam-Agent.git
-cd Foam-Agent
-docker build -f docker/Dockerfile -t foamagent:latest .
-```
-
-Run the locally built image:
+To mount a mesh file from the host into Docker:
 
 ```bash
 docker run -it \
   -e OPENAI_API_KEY=your-key-here \
+  -v /path/to/my_mesh.msh:/home/openfoam/Foam-Agent/my_mesh.msh \
   -p 7860:7860 \
-  --name foamagent \
-  foamagent:latest
-```
-
-### 2. Configuring LLM provider and model
-
-Foam-Agent selects the LLM backend and model from `src/config.py`. Inside the container, this file is at `/home/openfoam/Foam-Agent/src/config.py`.
-
-**Recommended (no API key): ChatGPT/Codex OAuth sign-in**
-
-If you have a ChatGPT/Codex subscription, you can run Foam-Agent via the **Codex OAuth** backend instead of a usage-based API key.
-This avoids setting `OPENAI_API_KEY` and reduces the risk of accidentally leaking API keys in shell history, screenshots, or logs.
-
-In plain words:
-- **OAuth sign-in** = you sign in to your ChatGPT/Codex account once on your **host machine**, and a local token file is created.
-- Foam-Agent can then reuse that token file (via a read-only mount) to call the model.
-
-**Step-by-step (host → Docker):**
-
-1) **Install the Codex CLI on your host machine**
-   - Follow the official Codex CLI installation instructions for your OS.
-
-2) **Login with ChatGPT (creates a local OAuth cache)**
-
-```bash
-codex login
-```
-
-Choose **“Sign in with ChatGPT”** when prompted.
-
-3) **Verify the token cache file exists** (typical location)
-
-```bash
-ls -lah ~/.codex/auth.json
-```
-
-If you do not see the file, your Codex CLI may be using an OS keychain instead of a file cache.
-In that case, configure Codex CLI to use file-based storage so that `~/.codex/auth.json` is created.
-
-4) **Run the Foam-Agent Docker container and mount the token file read-only**
-
-**Docker example (recommended):**
-
-```bash
-docker run -it \
-  -e FOAMAGENT_MODEL_PROVIDER=openai-codex \
-  -e FOAMAGENT_MODEL_VERSION=gpt-5.3-codex \
-  -v ~/.codex/auth.json:/root/.codex/auth.json:ro \
-  -p 7860:7860 \
-  --name foamagent \
   leoyue123/foamagent
 ```
 
-If your Codex OAuth cache lives elsewhere, mount that path instead:
-- `$CODEX_HOME/auth.json`
-- `~/.codex/auth.json`
-- `~/.clawdbot/agents/main/agent/auth-profiles.json`
+### MCP Server (Claude Code / Cursor Integration)
 
+Foam-Agent exposes its capabilities as an MCP server for integration with AI-powered editors.
 
-```python
-from dataclasses import dataclass
-from pathlib import Path
-
-@dataclass
-class Config:
-    ...
-    # ["openai", "openai-codex", "ollama", "bedrock", "anthropic"]
-    model_provider: str = "openai"
-    model_version: str = "gpt-5-mini"
-    temperature: float = 1.0
-```
-
-You can also override these values via environment variables (recommended for Docker / CI):
-- `FOAMAGENT_MODEL_PROVIDER` (e.g., `openai`, `openai-codex`, `anthropic`, `ollama`, `bedrock`)
-- `FOAMAGENT_MODEL_VERSION` (e.g., `gpt-5-mini`, `gpt-5.3-codex`, `claude-3-5-sonnet-latest`, ...)
-- `FOAMAGENT_EMBEDDING_PROVIDER` (e.g., `openai`, `huggingface`, `ollama`)
-- `FOAMAGENT_EMBEDDING_MODEL` (e.g., `Qwen/Qwen3-Embedding-0.6B`, `text-embedding-3-small`)
-
-Example:
-```bash
-docker run -it \
-  -e FOAMAGENT_MODEL_PROVIDER=openai \
-  -e FOAMAGENT_MODEL_VERSION=gpt-5-mini \
-  -e OPENAI_API_KEY=your-key-here \
-  -p 7860:7860 \
-  --name foamagent \
-  foamagent:latest
-```
-
-#### Option A: OpenAI API key (usage-based)
-
-- **model_provider**: `"openai"`
-- Set environment variable: `OPENAI_API_KEY=sk-...`
-
-#### Option B: Anthropic Claude API key (usage-based)
-
-- **model_provider**: `"anthropic"`
-- Set environment variable: `ANTHROPIC_API_KEY=...`
-- **model_version**: e.g. `"claude-3-5-sonnet-latest"`
-
-#### Option C: ChatGPT/Codex subscription sign-in (no API key) (experimental)
-
-If you already signed in with ChatGPT for Codex (same flow as the Codex CLI / IDE extension), Foam-Agent can load
-that token from your local Codex auth cache and run inference **via the Codex subscription backend**.
-
-- **model_provider**: `"openai-codex"`
-- **model_version**: a Codex model you have access to, e.g. `"gpt-5.3-codex"`
-
-Foam-Agent looks for a Codex/ChatGPT OAuth cache (first match wins):
-- `$CODEX_HOME/auth.json`
-- `~/.codex/auth.json`
-- `~/.clawdbot/agents/main/agent/auth-profiles.json` (if you already logged in via Clawdbot OpenAI-Codex OAuth)
-
-**How to create `~/.codex/auth.json`:**
-1. Install and run the Codex CLI (or sign in via the Codex IDE extension).
-2. Run `codex login` and choose **Sign in with ChatGPT**.
-3. Ensure Codex stores credentials in a file (some setups use OS keyring by default). If needed, configure
-   Codex to use file-based storage so that `~/.codex/auth.json` exists.
-
-Security note: `~/.codex/auth.json` contains access tokens. Treat it like a password.
-
-To change the LLM configuration inside Docker:
+**Start the server inside the container:**
 
 ```bash
-docker exec -it foamagent bash
-cd /home/openfoam/Foam-Agent
-nano src/config.py
-```
-
-- **OpenAI (via `OPENAI_API_KEY`)**:
-  - **model_provider**: `"openai"`
-  - **model_version**: e.g. `"gpt-5-mini"` or another supported OpenAI-compatible model name
-- **Anthropic (via `ANTHROPIC_API_KEY`)**:
-  - **model_provider**: `"anthropic"`
-  - **model_version**: e.g. `"claude-3-5-sonnet-latest"`
-- **AWS Bedrock**:
-  - **model_provider**: `"bedrock"`
-  - **model_version**: your Bedrock application ARN
-- **Ollama (local models)**:
-  - **model_provider**: `"ollama"`
-  - **model_version**: the local model name, e.g. `"qwen2.5:32b-instruct"`
-
-
-### 3. Using Foam-Agent via MCP (with Docker)
-
-Foam-Agent exposes its capabilities as an MCP server. The recommended workflow is:
-1. Run Foam-Agent in Docker  
-2. Start the MCP server inside the container  
-3. Point Claude Code or Cursor to that server
-
-#### 3.1 Start the MCP server inside the container
-
-Make sure the container is running:
-
-```bash
-docker start -i foamagent
-```
-
-In a separate terminal, attach and start the MCP server:
-
-```bash
-docker exec -it foamagent bash
-cd /home/openfoam/Foam-Agent
-
-# HTTP mode (if your MCP client supports HTTP transport)
 python -m src.mcp.fastmcp_server --transport http --host 0.0.0.0 --port 7860
 ```
 
-If you are running Docker on a remote server, make sure port `7860` is reachable from your local machine
-(for example, by using SSH port forwarding or a proper port mapping such as `-p 7860:7860` when starting the container).
-
-#### 3.2 Configure Claude Code / Cursor (HTTP mode)
-
-In your MCP configuration file, use a simple HTTP-based entry like:
+**Configure your MCP client** (Claude Code or Cursor):
 
 ```json
 {
@@ -393,28 +160,36 @@ In your MCP configuration file, use a simple HTTP-based entry like:
 }
 ```
 
-Adjust `localhost` and the port if your server is running on a different host or port.
+For Cursor: open Settings > Features > MCP > Edit MCP Settings, paste the config above, and restart.
 
-#### 3.3 (Optional) stdio mode via Docker
+> If running Docker on a remote server, ensure port 7860 is reachable (e.g., via SSH port forwarding or `-p 7860:7860`).
 
-If your MCP client prefers stdio instead of HTTP, you can still use the original `docker exec` style configuration.
-Refer to the Foam-Agent repository documentation for the stdio example.
+### Codex OAuth Sign-in (No API Key)
 
-#### 3.4 Configure Cursor (same MCP config)
+If you have a ChatGPT/Codex subscription, you can authenticate via OAuth instead of an API key:
 
-1. Open Cursor settings (Cmd/Ctrl + ,)
-2. Search for **"MCP"** or navigate to **Settings → Features → MCP**
-3. Click **"Edit MCP Settings"** or open the MCP configuration file
-4. Paste the JSON configuration from section **3.2**
-5. Save and restart Cursor
+1. Install the [Codex CLI](https://github.com/openai/codex) on your host machine.
+2. Run `codex login` and choose **"Sign in with ChatGPT"**.
+3. Verify the token cache exists: `ls ~/.codex/auth.json`
+4. Mount it into the container:
 
-Once configured, you can call Foam-Agent tools directly from Claude Code or Cursor to plan cases, write input files, run simulations, and visualize results through natural-language commands.
+```bash
+docker run -it \
+  -e FOAMAGENT_MODEL_PROVIDER=openai-codex \
+  -e FOAMAGENT_MODEL_VERSION=gpt-5.3-codex \
+  -v ~/.codex/auth.json:/root/.codex/auth.json:ro \
+  -p 7860:7860 \
+  leoyue123/foamagent
+```
 
-### 4. Manual Installation (without Docker, optional)
+Foam-Agent searches for OAuth tokens at (first match wins):
+- `$CODEX_HOME/auth.json`
+- `~/.codex/auth.json`
+- `~/.clawdbot/agents/main/agent/auth-profiles.json`
 
-If you prefer not to use Docker, you can install Foam-Agent and its dependencies manually.
+> Security note: `auth.json` contains access tokens. Treat it like a password.
 
-#### 4.1 Clone the repository and create the environment
+### Manual Installation (Without Docker)
 
 ```bash
 git clone https://github.com/csml-rpi/Foam-Agent.git
@@ -423,65 +198,45 @@ conda env create -n FoamAgent -f environment.yml
 conda activate FoamAgent
 ```
 
-#### 4.2 Install and configure OpenFOAM v10
-
-Foam-Agent requires OpenFOAM v10. Please follow the official installation guide for your operating system:
-
-- Official installation: [https://openfoam.org/version/10/](https://openfoam.org/version/10/)
-
-Verify your installation with:
+You also need **OpenFOAM v10** installed and sourced. Follow the [official installation guide](https://openfoam.org/version/10/) and verify with:
 
 ```bash
-echo $WM_PROJECT_DIR
+echo $WM_PROJECT_DIR   # should print e.g. /opt/openfoam10
 ```
 
-The result should be something like:
-
-```text
-/opt/openfoam10
-```
-
-`WM_PROJECT_DIR` is an environment variable that comes with your OpenFOAM installation, indicating the location of OpenFOAM on your computer.
-
-#### 4.3 Run a demo workflow (manual setup)
-
-From the repository root:
+Then run:
 
 ```bash
 python foambench_main.py --output ./output --prompt_path ./user_requirement.txt
 ```
 
-You can also specify a custom mesh:
+### Building the Docker Image from Source
 
 ```bash
-python foambench_main.py \
-  --output ./output \
-  --prompt_path ./user_req_tandem_wing.txt \
-  --custom_mesh_path ./tandem_wing.msh
+git clone https://github.com/csml-rpi/Foam-Agent.git
+cd Foam-Agent
+docker build -f docker/Dockerfile -t foamagent:latest .
+docker run -it \
+  -e OPENAI_API_KEY=your-key-here \
+  -p 7860:7860 \
+  foamagent:latest
 ```
 
-### 5. Configuration and environment variables (summary)
+## Troubleshooting
 
-- Default configuration (including LLM provider and model) is in `src/config.py`.
-- You must set the `OPENAI_API_KEY` environment variable if using OpenAI/Bedrock-style models.
-- For AWS Bedrock or other cloud providers, ensure their credentials are configured in your environment.
-
-### 6. Troubleshooting
-
-- **OpenFOAM environment not found**: Ensure you have sourced the OpenFOAM bashrc and restarted your terminal (for manual installations), or use the provided Docker image where this is pre-configured.
-- **Database files missing**: Database files are included in the repository (and in the Docker image). If they are missing, ensure you have cloned the complete repository including the `database/` directory.
-- **Missing dependencies**: Recreate the environment: `conda env update -n FoamAgent -f environment.yml --prune` or `conda env remove -n FoamAgent && conda env create -n FoamAgent -f environment.yml`.
-- **API key errors**: Ensure `OPENAI_API_KEY` is set in your environment or in the MCP configuration.
-- **MCP connection errors**: Verify that the Docker container is running, the MCP command in your configuration matches your setup, and that all dependencies are installed.
-
+| Problem | Solution |
+|---|---|
+| OpenFOAM environment not found | Ensure OpenFOAM bashrc is sourced, or use the Docker image |
+| Database files missing | Ensure the full repo is cloned including `database/`. Docker image has these pre-built |
+| Missing dependencies | `conda env update -n FoamAgent -f environment.yml --prune` |
+| API key errors | Ensure the appropriate key is set (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) |
+| MCP connection errors | Verify the container is running and port 7860 is accessible |
 
 ## Community
 
 ### Join the WeChat community
 
 Chinese-speaking users can join the Foam-Agent WeChat community by scanning the QR code below.
-
-微信群社区可以扫码进群：
 
 <p align="center">
   <img src="wechat_foamagent.JPG" alt="Foam-Agent WeChat Community QR Code" width="280">
