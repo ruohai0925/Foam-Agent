@@ -283,6 +283,8 @@ class Config:
 You can also override these values via environment variables (recommended for Docker / CI):
 - `FOAMAGENT_MODEL_PROVIDER` (e.g., `openai`, `openai-codex`, `anthropic`, `ollama`, `bedrock`)
 - `FOAMAGENT_MODEL_VERSION` (e.g., `gpt-5-mini`, `gpt-5.3-codex`, `claude-3-5-sonnet-latest`, ...)
+- `FOAMAGENT_EMBEDDING_PROVIDER` (e.g., `openai`, `huggingface`, `ollama`)
+- `FOAMAGENT_EMBEDDING_MODEL` (e.g., `Qwen/Qwen3-Embedding-0.6B`, `text-embedding-3-small`)
 
 Example:
 ```bash

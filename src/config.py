@@ -80,3 +80,27 @@ class Config:
             print(f"<config>model_version={self.model_version} (env:{version_key})</config>")
         else:
             print(f"<config>model_version={self.model_version} (default)</config>")
+
+        # Embedding provider/model overrides
+        emb_provider_key = "FOAMAGENT_EMBEDDING_PROVIDER"
+        emb_model_key = "FOAMAGENT_EMBEDDING_MODEL"
+
+        emb_provider_env = _env_nonempty(emb_provider_key)
+        if emb_provider_env is not None:
+            allowed_emb = {"openai", "huggingface", "ollama"}
+            if emb_provider_env in allowed_emb:
+                self.embedding_provider = emb_provider_env
+                print(f"<config>embedding_provider={self.embedding_provider} (env:{emb_provider_key})</config>")
+            else:
+                print(
+                    f"<config>embedding_provider={self.embedding_provider} (default; invalid env:{emb_provider_key}={emb_provider_env!r})</config>"
+                )
+        else:
+            print(f"<config>embedding_provider={self.embedding_provider} (default)</config>")
+
+        emb_model_env = _env_nonempty(emb_model_key)
+        if emb_model_env is not None:
+            self.embedding_model = emb_model_env
+            print(f"<config>embedding_model={self.embedding_model} (env:{emb_model_key})</config>")
+        else:
+            print(f"<config>embedding_model={self.embedding_model} (default)</config>")
