@@ -42,7 +42,7 @@ global_config = Config()
 # Create FastMCP server
 mcp = FastMCP(
     name="Foam-Agent",
-    version="1.1.0",
+    version="2.0.0",
     instructions="""
 Foam-Agent is a multi-agent framework that automates the entire OpenFOAM-based CFD simulation workflow from a single natural language prompt. 
 By managing the full pipeline—from meshing and case setup to execution and post-processing—Foam-Agent dramatically lowers the expertise barrier for Computational Fluid Dynamics.

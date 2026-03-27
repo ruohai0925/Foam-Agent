@@ -138,31 +138,80 @@ docker run -it \
   leoyue123/foamagent
 ```
 
-### MCP Server (Claude Code / Cursor Integration)
+### Skill / MCP Integration (Claude Code, Cursor, Windsurf, etc.)
 
-Foam-Agent exposes its capabilities as an MCP server for integration with AI-powered editors.
+Foam-Agent exposes its full CFD workflow as an **MCP server** — the universal protocol supported by Claude Code, Cursor, Windsurf, and other AI-powered tools. It also ships with a **Claude Code skill** (`/foam`) for one-command simulation runs.
 
-**Start the server inside the container:**
+#### Quick Setup (Local Install)
 
 ```bash
-python -m src.mcp.fastmcp_server --transport http --host 0.0.0.0 --port 7860
+# 1. Install (adds the foamagent-mcp command)
+pip install -e .
+
+# 2. Register with your AI tool
+claude mcp add foamagent -- foamagent-mcp                # Claude Code
 ```
 
-**Configure your MCP client** (Claude Code or Cursor):
+For **Cursor**: open Settings > Features > MCP > Edit MCP Settings, and add:
 
 ```json
 {
   "mcpServers": {
-    "foam-agent": {
-      "url": "http://localhost:7860"
+    "foamagent": {
+      "command": "foamagent-mcp"
     }
   }
 }
 ```
 
-For Cursor: open Settings > Features > MCP > Edit MCP Settings, paste the config above, and restart.
+For **Windsurf / other MCP-compatible tools**, use the same JSON config above.
+
+#### Quick Setup (Docker)
+
+If running in Docker, start the HTTP server and point your MCP client at it:
+
+```bash
+docker run -it \
+  -e OPENAI_API_KEY=your-key-here \
+  -p 7860:7860 \
+  leoyue123/foamagent \
+  foamagent-mcp --transport http --host 0.0.0.0 --port 7860
+```
+
+Then configure your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "foamagent": {
+      "url": "http://localhost:7860/mcp"
+    }
+  }
+}
+```
 
 > If running Docker on a remote server, ensure port 7860 is reachable (e.g., via SSH port forwarding or `-p 7860:7860`).
+
+#### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `plan` | Analyze requirements and plan simulation structure (solver, domain, subtasks) |
+| `input_writer` | Generate all OpenFOAM configuration files (system/, constant/, 0/) |
+| `run` | Execute Allrun script locally with error collection |
+| `review` | Analyze simulation errors and suggest fixes via LLM |
+| `apply_fixes` | Rewrite OpenFOAM files based on review analysis |
+| `visualization` | Generate PyVista visualization of simulation results |
+
+#### Claude Code Skill
+
+For Claude Code users who clone this repo, a `/foam` skill is included in `.claude/skills/foam.md`. It orchestrates the MCP tools into a complete workflow:
+
+```
+/foam Simulate lid-driven cavity flow at Re=1000
+```
+
+This triggers the full pipeline: plan -> generate files -> run -> review/fix loop -> visualize.
 
 ### Codex OAuth Sign-in (No API Key)
 

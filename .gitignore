@@ -1,5 +1,7 @@
 # Project
 CLAUDE.md
+.claude/settings.local.json
+.claude/memory/
 runs/
 output/
 benchmark/

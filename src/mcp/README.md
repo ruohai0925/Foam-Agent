@@ -1,244 +1,135 @@
-# OpenFOAM Agent - FastMCP Server
+# Foam-Agent MCP Server
 
-This directory contains a modern MCP (Model Context Protocol) server implementation for the OpenFOAM Agent using FastMCP.
+Expose OpenFOAM CFD simulation as tools for any AI coding assistant via [MCP (Model Context Protocol)](https://modelcontextprotocol.io/).
 
-## Overview
+## Quick Start
 
-The FastMCP-based server provides a clean, well-typed interface to OpenFOAM simulation capabilities, exposing the following core functions:
+### 1. Install
 
-### Core Workflow Functions
-- `create_openfoam_case` - Create a new OpenFOAM case from user requirements
-- `plan_simulation` - Plan simulation structure and generate subtasks
-- `generate_openfoam_files` - Generate OpenFOAM input files
-- `prepare_mesh` - Prepare mesh for simulation
-- `run_simulation` - Run simulation locally or on HPC
-- `monitor_simulation` - Monitor simulation progress
-- `review_results` - Review simulation results and suggest fixes
-- `apply_fixes` - Apply suggested fixes to the case
-- `generate_visualization` - Generate visualization artifacts
-
-### Utility Functions
-- `get_case_logs` - Retrieve case logs
-- `check_job_status` - Check HPC job status
-- `list_available_cases` - List all available cases
-
-## Installation
-
-1. Install dependencies:
 ```bash
-pip install -r requirements.txt
+# Clone and install
+git clone https://github.com/csml-rpi/Foam-Agent.git
+cd Foam-Agent
+pip install -e .
 ```
 
-2. Ensure FastMCP is installed:
+Or with conda (full environment including PyTorch, FAISS, etc.):
+
 ```bash
-pip install fastmcp>=2.0.0
+conda env create -f environment.yml
+conda activate FoamAgent
+pip install -e .
 ```
 
-## Usage
+### 2. Register with your AI tool (one command)
 
-### Running the MCP Server
-
-The server can be run in different modes:
-
-#### Standard I/O Mode (for MCP clients)
+**Claude Code:**
 ```bash
-python -m src.mcp.fastmcp_server
+claude mcp add foamagent -- foamagent-mcp
 ```
 
-#### HTTP Mode (for web clients)
-```bash
-python -m src.mcp.fastmcp_server --transport http --port 8080
-```
-
-### MCP Client Configuration
-
-Add the following to your MCP client configuration:
-
+**Cursor:**
+Add to `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "openfoam-agent": {
-      "command": "python",
-      "args": ["-m", "src.mcp.fastmcp_server"],
-      "cwd": "/path/to/Foam-Agent",
-      "env": {
-        "PYTHONPATH": "/path/to/Foam-Agent/src"
-      }
+    "foamagent": {
+      "command": "foamagent-mcp"
     }
   }
 }
 ```
 
-### Example Usage
-
-Here's how to use the MCP server programmatically:
-
-```python
-from fastmcp import FastMCPClient
-
-# Connect to the server
-client = FastMCPClient("http://localhost:8080")
-
-# Create a new case
-case_response = await client.call_tool(
-    "create_openfoam_case",
-    {
-        "user_requirement": "Create a simple fluid flow simulation around a cylinder",
-        "output_dir": "/path/to/output"
+**Windsurf / Other MCP-compatible tools:**
+```json
+{
+  "mcpServers": {
+    "foamagent": {
+      "command": "foamagent-mcp"
     }
-)
-
-# Plan the simulation
-plan_response = await client.call_tool(
-    "plan",
-    {
-        "request": {
-            "user_requirement": "Create a simple fluid flow simulation around a cylinder"
-        }
-    }
-)
-
-# Generate OpenFOAM files
-files_response = await client.call_tool(
-    "input_writer",
-    {
-        "request": {
-            "case_name": plan_response["case_name"],
-            "subtasks": plan_response["subtasks"],
-            "user_requirement": "Create a simple fluid flow simulation around a cylinder",
-            "case_solver": plan_response["case_solver"],
-            "case_domain": plan_response["case_domain"],
-            "case_category": plan_response["case_category"]
-        }
-    }
-)
+  }
+}
 ```
+
+**HTTP mode** (for web clients or remote access):
+```bash
+foamagent-mcp --transport http --host 0.0.0.0 --port 7860
+```
+
+### 3. Configure LLM provider (optional)
+
+Set environment variables to choose your LLM backend:
+
+```bash
+export FOAMAGENT_MODEL_PROVIDER=anthropic          # openai, anthropic, bedrock, ollama
+export FOAMAGENT_MODEL_VERSION=claude-sonnet-4-6   # model identifier
+export ANTHROPIC_API_KEY=sk-ant-...                # API key for your provider
+```
+
+## Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `plan` | Analyze user requirements and plan simulation structure (solver, domain, subtasks) |
+| `input_writer` | Generate all OpenFOAM configuration files (system/, constant/, 0/) |
+| `run` | Execute Allrun script locally with error collection |
+| `review` | Analyze simulation errors and suggest fixes via LLM |
+| `apply_fixes` | Rewrite OpenFOAM files based on review analysis |
+| `visualization` | Generate PyVista visualization of simulation results |
+
+## Typical Workflow
+
+Once registered, ask your AI assistant naturally:
+
+> "Simulate lid-driven cavity flow at Re=1000"
+
+The assistant will call the tools in sequence:
+1. **plan** - Parse requirements, select solver, generate subtasks
+2. **input_writer** - Generate all OpenFOAM files
+3. **run** - Execute the simulation
+4. **review + apply_fixes** - Fix errors if any (automatic retry loop)
+5. **visualization** - Render results
+
+## Prerequisites
+
+- **Python 3.10+** with dependencies installed
+- **OpenFOAM v10** installed and available in PATH (for running simulations)
+- An LLM API key (OpenAI, Anthropic, or local via Ollama)
 
 ## Architecture
 
-The FastMCP server is built on top of the existing service layer:
-
 ```
-MCP Client
+AI Tool (Claude Code / Cursor / ...)
+    ↓ MCP protocol (stdio or HTTP)
+foamagent-mcp (this server)
     ↓
-FastMCP Server (fastmcp_server.py)
+Service Layer (src/services/*.py)
     ↓
-Service Layer (services/*.py)
-    ↓
-OpenFOAM Tools & LLM Services
+OpenFOAM + LLM Services
 ```
 
-### Key Benefits
+## Advanced Configuration
 
-1. **Type Safety**: All inputs and outputs are validated using Pydantic models
-2. **Error Handling**: Comprehensive error handling with detailed logging
-3. **Progress Reporting**: Real-time progress updates through MCP context
-4. **Clean Interface**: Well-defined API that's easy to understand and use
-5. **Extensibility**: Easy to add new tools and capabilities
-
-### Input/Output Models
-
-The server uses structured Pydantic models for all inputs and outputs:
-
-- `CreateCaseRequest/Response` - Case creation
-- `PlanRequest/Response` - Simulation planning
-- `GenerateFilesRequest/Response` - File generation
-- `MeshRequest/Response` - Mesh preparation
-- `RunSimulationRequest/Response` - Simulation execution
-- `MonitorRequest/Response` - Simulation monitoring
-- `ReviewRequest/Response` - Result review
-- `ApplyFixRequest/Response` - Fix application
-- `VisualizationRequest/Response` - Visualization generation
-
-## Configuration
-
-The server uses the existing `Config` class from `config.py`. Key configuration options:
-
-- `database_path`: Path to FAISS database
-- `run_directory`: Directory for case outputs
-- `max_loop`: Maximum retry loops
-- `searchdocs`: Number of similar documents to retrieve
-- `model_provider`: LLM provider (bedrock, openai, openai-codex, anthropic, ollama)
-- `model_version`: Specific model version
-
-## Error Handling
-
-The server provides comprehensive error handling:
-
-1. **Validation Errors**: Input validation using Pydantic
-2. **Service Errors**: Wrapped service layer exceptions
-3. **File System Errors**: Proper handling of file operations
-4. **LLM Errors**: Graceful handling of LLM service failures
-
-All errors are logged through the MCP context and returned to the client with detailed information.
-
-## Logging
-
-The server uses FastMCP's built-in logging capabilities:
-
-- `ctx.info()` - Informational messages
-- `ctx.warning()` - Warning messages
-- `ctx.error()` - Error messages
-- `ctx.debug()` - Debug messages
-
-## Development
-
-### Adding New Tools
-
-To add a new tool to the MCP server:
-
-1. Define input/output models using Pydantic
-2. Create the tool function with `@mcp.tool()` decorator
-3. Add proper error handling and logging
-4. Update documentation
-
-### Testing
-
-Run tests with:
-```bash
-pytest tests/test_fastmcp_server.py
-```
-
-### Code Style
-
-The code follows Python best practices:
-- Type hints for all functions
-- Comprehensive docstrings
-- Error handling with proper exceptions
-- Clean separation of concerns
-
-## Migration from Legacy Adapter
-
-The new FastMCP server replaces the legacy `adapter.py` implementation with several improvements:
-
-1. **Better Type Safety**: Pydantic models instead of raw dictionaries
-2. **Cleaner API**: Well-defined request/response models
-3. **Better Error Handling**: Comprehensive error handling and logging
-4. **Progress Reporting**: Real-time progress updates
-5. **Modern Architecture**: Built on FastMCP framework
+| Environment Variable | Purpose | Default |
+|---------------------|---------|---------|
+| `FOAMAGENT_MODEL_PROVIDER` | LLM backend | `openai-codex` |
+| `FOAMAGENT_MODEL_VERSION` | Model identifier | `gpt-5.3-codex` |
+| `FOAMAGENT_EMBEDDING_PROVIDER` | Embedding backend | `huggingface` |
+| `FOAMAGENT_EMBEDDING_MODEL` | Embedding model | `Qwen/Qwen3-Embedding-0.6B` |
+| `OPENAI_API_KEY` | OpenAI API key | — |
+| `ANTHROPIC_API_KEY` | Anthropic API key | — |
 
 ## Troubleshooting
 
-### Common Issues
+**Import errors:** Ensure you ran `pip install -e .` from the repo root.
 
-1. **Import Errors**: Ensure PYTHONPATH includes the src directory
-2. **Database Errors**: Check that the database_path exists and is accessible
-3. **Permission Errors**: Ensure write permissions for output directories
-4. **LLM Errors**: Verify LLM service configuration and credentials
-
-### Debug Mode
-
-Run with debug logging:
+**Database errors:** The FAISS indices ship pre-built in `database/faiss/`. If missing, rebuild with:
 ```bash
-PYTHONPATH=/path/to/Foam-Agent/src python -m src.mcp.fastmcp_server --log-level debug
+python init_database.py --openfoam_path $WM_PROJECT_DIR --force
 ```
 
-## Contributing
-
-When contributing to the MCP server:
-
-1. Follow the existing code style
-2. Add comprehensive tests
-3. Update documentation
-4. Ensure backward compatibility where possible
-5. Use type hints and proper error handling
+**OpenFOAM not found:** The `run` tool requires OpenFOAM v10. Install it or use the Docker image:
+```bash
+docker build -f docker/Dockerfile -t foamagent:latest .
+docker run -it -p 7860:7860 foamagent:latest foamagent-mcp --transport http
+```
