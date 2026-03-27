@@ -59,6 +59,8 @@ RUN apt-get update \
         libboost-all-dev \
         ca-certificates \
         git \
+        git-lfs \
+    && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
 # Environment variables in a FoamAgent container
