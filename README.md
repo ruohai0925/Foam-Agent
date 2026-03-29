@@ -285,7 +285,7 @@ docker run -it \
 
 ### Join the WeChat community
 
-Chinese-speaking users can join the Foam-Agent WeChat community by scanning the QR code below. Since the WeChat group QR code expires periodically, you can also add the maintainer's WeChat account directly: **ZDSJTUCFD**. The maintainer will invite you to the group.
+Chinese-speaking users can join the Foam-Agent WeChat community by scanning the QR code below, or by adding the volunteer's WeChat account: **ZDSJTUCFD**. The volunteer will invite you to the group.
 
 <p align="center">
   <img src="wechat_foamagent.JPG" alt="Foam-Agent WeChat Community QR Code" width="280">
