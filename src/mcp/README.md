@@ -2,6 +2,8 @@
 
 Expose OpenFOAM CFD simulation as tools for any AI coding assistant via [MCP (Model Context Protocol)](https://modelcontextprotocol.io/).
 
+> **OpenFOAM version:** This server targets **Foundation OpenFOAM v10** ([openfoam.org](https://openfoam.org)) exclusively. All generated case files, dictionary names (e.g., `momentumTransport`, `physicalProperties`), and solver binaries (e.g., `buoyantFoam`) follow Foundation v10 conventions. **ESI OpenFOAM** ([openfoam.com](https://openfoam.com), e.g., v2312, v2406, v2512) uses different naming and is **not supported**.
+
 ## Quick Start
 
 ### 1. Install
@@ -68,11 +70,13 @@ export ANTHROPIC_API_KEY=sk-ant-...                # API key for your provider
 
 ## Available MCP Tools
 
+All tools generate output following **Foundation OpenFOAM v10** conventions.
+
 | Tool | Description |
 |------|-------------|
-| `plan` | Analyze user requirements and plan simulation structure (solver, domain, subtasks) |
-| `input_writer` | Generate all OpenFOAM configuration files (system/, constant/, 0/) |
-| `run` | Execute Allrun script locally with error collection |
+| `plan` | Analyze user requirements and plan simulation structure (solver, domain, subtasks) using Foundation v10 conventions |
+| `input_writer` | Generate all OpenFOAM configuration files (system/, constant/, 0/) targeting Foundation v10 |
+| `run` | Execute Allrun script locally with error collection (requires Foundation OpenFOAM v10) |
 | `review` | Analyze simulation errors and suggest fixes via LLM |
 | `apply_fixes` | Rewrite OpenFOAM files based on review analysis |
 | `visualization` | Generate PyVista visualization of simulation results |
@@ -93,7 +97,7 @@ The assistant will call the tools in sequence:
 ## Prerequisites
 
 - **Python 3.10+** with dependencies installed
-- **OpenFOAM v10** installed and available in PATH (for running simulations)
+- **Foundation OpenFOAM v10** ([openfoam.org](https://openfoam.org)) installed and available in PATH (for running simulations). ESI OpenFOAM (openfoam.com) is not compatible.
 - An LLM API key (OpenAI, Anthropic, or local via Ollama)
 
 ## Architecture
@@ -128,7 +132,7 @@ OpenFOAM + LLM Services
 python init_database.py --openfoam_path $WM_PROJECT_DIR --force
 ```
 
-**OpenFOAM not found:** The `run` tool requires OpenFOAM v10. Install it or use the Docker image:
+**OpenFOAM not found:** The `run` tool requires Foundation OpenFOAM v10 ([openfoam.org](https://openfoam.org)). ESI OpenFOAM (openfoam.com) is not compatible. Install Foundation v10 or use the Docker image:
 ```bash
 docker build -f docker/Dockerfile -t foamagent:latest .
 docker run -it -p 7860:7860 foamagent:latest foamagent-mcp --transport http

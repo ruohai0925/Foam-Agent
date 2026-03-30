@@ -194,11 +194,13 @@ Then configure your MCP client:
 
 #### Available MCP Tools
 
+All tools generate output following **Foundation OpenFOAM v10** conventions.
+
 | Tool | Description |
 |------|-------------|
-| `plan` | Analyze requirements and plan simulation structure (solver, domain, subtasks) |
-| `input_writer` | Generate all OpenFOAM configuration files (system/, constant/, 0/) |
-| `run` | Execute Allrun script locally with error collection |
+| `plan` | Analyze requirements and plan simulation structure using Foundation v10 conventions |
+| `input_writer` | Generate all OpenFOAM configuration files (system/, constant/, 0/) targeting Foundation v10 |
+| `run` | Execute Allrun script locally with error collection (requires Foundation OpenFOAM v10) |
 | `review` | Analyze simulation errors and suggest fixes via LLM |
 | `apply_fixes` | Rewrite OpenFOAM files based on review analysis |
 | `visualization` | Generate PyVista visualization of simulation results |
@@ -247,7 +249,7 @@ conda env create -n FoamAgent -f environment.yml
 conda activate FoamAgent
 ```
 
-You also need **OpenFOAM v10** installed and sourced. Follow the [official installation guide](https://openfoam.org/version/10/) and verify with:
+You also need **Foundation OpenFOAM v10** ([openfoam.org](https://openfoam.org)) installed and sourced. ESI OpenFOAM (openfoam.com) is not compatible. Follow the [official installation guide](https://openfoam.org/version/10/) and verify with:
 
 ```bash
 echo $WM_PROJECT_DIR   # should print e.g. /opt/openfoam10
@@ -275,11 +277,13 @@ docker run -it \
 
 | Problem | Solution |
 |---|---|
-| OpenFOAM environment not found | Ensure OpenFOAM bashrc is sourced, or use the Docker image |
+| OpenFOAM environment not found | Ensure Foundation OpenFOAM v10 ([openfoam.org](https://openfoam.org)) bashrc is sourced, or use the Docker image. ESI OpenFOAM (openfoam.com) is not compatible |
 | Database files missing | Ensure the full repo is cloned including `database/`. Docker image has these pre-built |
 | Missing dependencies | `conda env update -n FoamAgent -f environment.yml --prune` |
 | API key errors | Ensure the appropriate key is set (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) |
 | MCP connection errors | Verify the container is running and port 7860 is accessible |
+
+> **OpenFOAM version:** Foam-Agent targets **Foundation OpenFOAM v10** ([openfoam.org](https://openfoam.org)) exclusively. All generated case files, dictionary names, and solver binaries follow Foundation v10 conventions. **ESI OpenFOAM** ([openfoam.com](https://openfoam.com), e.g., v2312, v2406, v2512) is **not supported** — generated files will not work without manual adaptation. The Docker image includes Foundation OpenFOAM v10 pre-installed.
 
 ## Community
 

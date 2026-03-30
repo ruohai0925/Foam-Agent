@@ -1,6 +1,6 @@
 ---
 name: foam
-description: Run a complete OpenFOAM CFD simulation from a natural language prompt using Foam-Agent's MCP tools
+description: Run a complete OpenFOAM CFD simulation (Foundation OpenFOAM v10 only) from a natural language prompt using Foam-Agent's MCP tools
 user_invocable: true
 ---
 
@@ -60,6 +60,7 @@ visualization({ case_dir: "<case_dir>", quantity: "<e.g., pressure, velocity>" }
 ```
 
 ## Guidelines
+- **This workflow targets Foundation OpenFOAM v10 (openfoam.org) exclusively.** Generated files use v10 dictionary names (e.g., `momentumTransport`, `physicalProperties`) and solver binaries (e.g., `buoyantFoam`). ESI OpenFOAM (openfoam.com, e.g., v2312, v2406, v2512) is not compatible.
 - Always show the plan to the user and get confirmation before generating files
 - Report progress at each step
 - If any step fails after retries, explain the error clearly and suggest manual intervention

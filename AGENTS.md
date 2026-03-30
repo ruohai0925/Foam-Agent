@@ -4,7 +4,9 @@
 
 ## What is Foam-Agent?
 
-Foam-Agent is a multi-agent framework that automates CFD (Computational Fluid Dynamics) simulations in OpenFOAM from natural language prompts. It uses LangChain/LangGraph for orchestration, FAISS for RAG-based tutorial retrieval, and supports multiple LLM providers (OpenAI, Anthropic, Bedrock, Ollama).
+Foam-Agent is a multi-agent framework that automates CFD (Computational Fluid Dynamics) simulations in **Foundation OpenFOAM v10** ([openfoam.org](https://openfoam.org)) from natural language prompts. It uses LangChain/LangGraph for orchestration, FAISS for RAG-based tutorial retrieval, and supports multiple LLM providers (OpenAI, Anthropic, Bedrock, Ollama).
+
+> **Important:** All generated case files, dictionary names, and solver binaries follow Foundation OpenFOAM v10 conventions. ESI OpenFOAM (openfoam.com, e.g., v2312, v2406, v2512) is **not compatible**.
 
 ## Build and Run
 
@@ -26,7 +28,7 @@ pytest tests/ -v
 python -m src.mcp.fastmcp_server --transport http --host 0.0.0.0 --port 7860
 ```
 
-Requires **OpenFOAM v10** at runtime (`$WM_PROJECT_DIR` must be set). Python 3.12.9 via Conda.
+Requires **Foundation OpenFOAM v10** ([openfoam.org](https://openfoam.org)) at runtime (`$WM_PROJECT_DIR` must be set). ESI OpenFOAM (openfoam.com) is not compatible. Python 3.12.9 via Conda.
 
 ## Architecture
 
@@ -126,6 +128,6 @@ python init_database.py --openfoam_path $WM_PROJECT_DIR --force
 ## Things to Watch Out For
 
 - **Do not regenerate FAISS indices** unless you have a specific reason. The pre-built indices in `database/faiss/` are correct and ready to use.
-- **OpenFOAM must be sourced** for any simulation execution. Without `$WM_PROJECT_DIR`, the runner nodes will fail.
+- **Foundation OpenFOAM v10 must be sourced** for any simulation execution. Without `$WM_PROJECT_DIR`, the runner nodes will fail. ESI OpenFOAM is not compatible.
 - **The error correction loop** can run up to 25 iterations. When modifying the reviewer or input writer, consider the impact on convergence.
 - **`GraphState` is mutable** and passed by reference through the entire pipeline. Be careful about unintended side effects when modifying state fields.
