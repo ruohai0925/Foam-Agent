@@ -4,6 +4,7 @@ This module provides a modern MCP server implementation using FastMCP,
 exposing OpenFOAM simulation capabilities through clean, well-typed interfaces.
 """
 
+import asyncio
 import os
 import json
 from typing import Dict, List, Optional, Any
@@ -160,7 +161,7 @@ async def input_writer(
     """
     try:
         await ctx.info(f"Generating OpenFOAM files for case: {request.case_name}")
-        
+
         # Resolve case directory
         case_dir = resolve_case_dir(
             case_name=request.case_name,
@@ -168,13 +169,13 @@ async def input_writer(
             run_times=global_config.run_times
         )
 
-        ctx.info(f"Case directory: {case_dir}")
-        
+        await ctx.info(f"Case directory: {case_dir}")
+
         # Load case statistics and retrieve references
         case_stats_path = os.path.join(global_config.database_path, "raw", "openfoam_case_stats.json")
         with open(case_stats_path, 'r') as f:
             case_stats = json.load(f)
-        
+
         # Build case info from request
         case_info = {
             "case_name": request.case_name,
@@ -183,8 +184,8 @@ async def input_writer(
             "case_category": request.case_category
         }
 
-        ctx.info(f"Case info: {case_info}")
-        
+        await ctx.info(f"Case info: {case_info}")
+
         # Retrieve references
         tutorial_reference, dir_structure, dir_counts_str, allrun_reference, _ = retrieve_references(
             case_name=case_info["case_name"],
@@ -193,7 +194,7 @@ async def input_writer(
             case_category=case_info["case_category"],
             searchdocs=global_config.searchdocs,
         )
-        
+
         # Convert subtasks format from {file, folder} to {file_name, folder_name}
         converted_subtasks = []
         for st in request.subtasks:
@@ -210,11 +211,29 @@ async def input_writer(
                     raise ValueError(f"Invalid subtask format: {st}. Must have 'file'/'file_name' and 'folder'/'folder_name'")
             else:
                 raise ValueError(f"Invalid subtask type: {type(st)}. Expected dict, got {st}")
-        
-        ctx.info(f"converted_subtasks: {converted_subtasks}")
-        
-        # Generate files
-        result = initial_write(
+
+        await ctx.info(f"converted_subtasks: {converted_subtasks}")
+
+        # Create a sync callback that bridges to async ctx.report_progress.
+        # initial_write() is synchronous and will run in a worker thread via
+        # asyncio.to_thread(), so we use run_coroutine_threadsafe to schedule
+        # progress notifications on the event loop from that thread.
+        loop = asyncio.get_running_loop()
+
+        def progress_callback(current: int, total: int, message: str) -> None:
+            future = asyncio.run_coroutine_threadsafe(
+                ctx.report_progress(current, total, message),
+                loop
+            )
+            try:
+                future.result(timeout=5.0)
+            except Exception:
+                pass  # Don't fail generation if progress reporting fails
+
+        # Run blocking initial_write in a thread to keep the event loop free
+        # for sending progress notifications
+        result = await asyncio.to_thread(
+            initial_write,
             case_dir=case_dir,
             subtasks=converted_subtasks,
             user_requirement=request.user_requirement,
@@ -223,27 +242,28 @@ async def input_writer(
             case_info=str(case_info),
             allrun_reference=allrun_reference,
             database_path=str(global_config.database_path),
-            searchdocs=global_config.searchdocs
+            searchdocs=global_config.searchdocs,
+            progress_callback=progress_callback,
         )
 
-        ctx.info(f"result: {result}")
-        
+        await ctx.info(f"result: {result}")
+
         # Get foamfiles from result
         foamfiles = result.get("foamfiles")
         if not foamfiles:
             raise ValueError("No foamfiles returned from initial_write")
-        
+
         allrun_script = os.path.join(case_dir, "Allrun")
-        
+
         num_files = len(foamfiles.list_foamfile) if hasattr(foamfiles, "list_foamfile") else 0
         await ctx.info(f"Generated {num_files} OpenFOAM files in {case_dir}")
-        
+
         return GenerateFilesResponse(
             case_dir=case_dir,
             foamfiles=foamfiles,
             allrun_script=allrun_script
         )
-        
+
     except Exception as e:
         await ctx.error(f"Failed to generate OpenFOAM files: {str(e)}")
         raise

@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Callable
 import shutil
 from utils import save_file, parse_context, retrieve_faiss, FoamPydantic, FoamfilePydantic, scan_case_directory, read_case_foamfiles, read_file
 from . import global_llm_service
@@ -32,6 +32,7 @@ def initial_write(
     searchdocs: int = 2,
     similar_case_advice: Optional[Any] = None,
     reuse_generated_dir: str = "",
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> Dict[str, Any]:
     """
     Generate OpenFOAM files from scratch based on user requirements and subtasks.
@@ -82,6 +83,13 @@ def initial_write(
         >>> print(f"Generated {len(result['dir_structure'])} directories")
     """
     print("<initial_write_service>")
+
+    def _report_progress(current: int, total: int, message: str) -> None:
+        if progress_callback:
+            try:
+                progress_callback(current, total, message)
+            except Exception:
+                pass
 
     if generation_mode not in {"sequential_dependency", "parallel_no_context"}:
         raise ValueError(
@@ -190,12 +198,18 @@ def initial_write(
             dir_structure[folder_name] = []
         dir_structure[folder_name].append(file_name)
 
+    total_steps = len(subtasks) + (2 if database_path else 0)
+    _report_progress(0, total_steps, f"Starting file generation for {len(subtasks)} files")
+
     if generation_mode == "parallel_no_context":
         print("<generation_mode>parallel_no_context (no cross-file context)</generation_mode>")
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
 
         # Parallelize all file generations; keep output order consistent with sorted subtasks.
         results: List[Optional[FoamfilePydantic]] = [None] * len(subtasks)
+        completed_count = 0
+        count_lock = threading.Lock()
         with ThreadPoolExecutor(max_workers=min(32, max(4, len(subtasks)))) as ex:
             future_map = {
                 ex.submit(_generate_one, subtasks[i], []): i
@@ -204,21 +218,34 @@ def initial_write(
             for fut in as_completed(future_map):
                 i = future_map[fut]
                 results[i] = fut.result()
+                with count_lock:
+                    completed_count += 1
+                    _report_progress(
+                        completed_count, total_steps,
+                        f"Generated {subtasks[i]['file_name']} in {subtasks[i]['folder_name']} (parallel)"
+                    )
 
         written_files.extend([r for r in results if r is not None])
 
     else:
         print("<generation_mode>sequential_dependency</generation_mode>")
-        for subtask in subtasks:
+        for idx, subtask in enumerate(subtasks):
             file_name = subtask["file_name"]
             folder_name = subtask["folder_name"]
             print(f"<generating_file>{file_name} in folder: {folder_name}</generating_file>")
             foamfile = _generate_one(subtask, written_files)
             written_files.append(foamfile)
+            _report_progress(idx + 1, total_steps, f"Generated {file_name} in {folder_name}")
     
     # Generate Allrun script if database_path is provided
     if database_path:
-        allrun_result = build_allrun(case_dir, database_path, searchdocs, dir_structure, case_info, allrun_reference, mesh_type, mesh_commands or [], user_requirement)
+        allrun_result = build_allrun(
+            case_dir, database_path, searchdocs, dir_structure, case_info,
+            allrun_reference, mesh_type, mesh_commands or [], user_requirement,
+            progress_callback=progress_callback,
+            progress_offset=len(subtasks),
+            total_steps=total_steps,
+        )
         written_files.append(FoamfilePydantic(file_name="Allrun", folder_name=case_dir, content=allrun_result["allrun_script"]))
     
     foamfiles = FoamPydantic(list_foamfile=written_files)
@@ -235,7 +262,10 @@ def build_allrun(
     allrun_reference: str,
     mesh_type: str,
     mesh_commands: List[str],
-    user_requirement: str = ""
+    user_requirement: str = "",
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    progress_offset: int = 0,
+    total_steps: int = 0,
 ) -> Dict[str, Any]:
     """
     Build an Allrun script for automated OpenFOAM simulation execution.
@@ -329,6 +359,12 @@ def build_allrun(
     
     command_response = global_llm_service.invoke(command_user_prompt, command_system_prompt, pydantic_obj=CommandsPydantic)
 
+    if progress_callback:
+        try:
+            progress_callback(progress_offset + 1, total_steps, "Generated Allrun commands")
+        except Exception:
+            pass
+
     if len(command_response.commands) == 0:
         print("Failed to generate commands.")
         raise ValueError("Failed to generate commands.")
@@ -375,7 +411,13 @@ def build_allrun(
         allrun_user_prompt += "CRITICAL: Do not include any gmshToFoam commands in the Allrun script."
 
     allrun_response = global_llm_service.invoke(allrun_user_prompt, allrun_system_prompt)
-    
+
+    if progress_callback:
+        try:
+            progress_callback(progress_offset + 2, total_steps, "Generated Allrun script")
+        except Exception:
+            pass
+
     allrun_script = parse_allrun(allrun_response)
     allrun_file_path = os.path.join(case_dir, "Allrun")
     save_file(allrun_file_path, allrun_script)
