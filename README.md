@@ -1,5 +1,4 @@
-# Foam-Agent
-
+# Foam-Agent    <a href="https://arxiv.org/abs/2505.04997"><img src="https://img.shields.io/badge/arXiv-2505.04997-b31b1b.svg" alt="Paper"></a>
 <p align="center">
   <img src="overview.png" alt="Foam-Agent System Architecture" width="800">
 </p>
