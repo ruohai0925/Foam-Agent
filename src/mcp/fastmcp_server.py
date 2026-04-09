@@ -186,8 +186,12 @@ async def input_writer(
 
         await ctx.info(f"Case info: {case_info}")
 
-        # Retrieve references
-        tutorial_reference, dir_structure, dir_counts_str, allrun_reference, _ = retrieve_references(
+        # Retrieve references (including the similar-case advice that the LLM
+        # uses to know which tutorial fields/schemes to copy from). This advice
+        # is the same one the LangGraph planner_node forwards to input_writer
+        # via state["similar_case_advice"]; without it, MCP-driven generation
+        # is missing context that the in-process pipeline has.
+        tutorial_reference, dir_structure, dir_counts_str, allrun_reference, similar_case_advice = retrieve_references(
             case_name=case_info["case_name"],
             case_solver=case_info["case_solver"],
             case_domain=case_info["case_domain"],
@@ -243,6 +247,7 @@ async def input_writer(
             allrun_reference=allrun_reference,
             database_path=str(global_config.database_path),
             searchdocs=global_config.searchdocs,
+            similar_case_advice=similar_case_advice,
             progress_callback=progress_callback,
         )
 
