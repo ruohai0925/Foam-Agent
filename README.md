@@ -303,12 +303,8 @@ If you use Foam-Agent in your research, please cite our paper:
     pages = {119271},
     year = {2026},
     issn = {0045-7825},
-    keywords={journal},
     author = {Ling Yue and Nithin Somasekharan and Tingwen Zhang and Yadi Cao and Zhangze Chen and Shimin Di and Shaowu Pan}
 }
 
 ```
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=csml-rpi/Foam-Agent&type=timeline&legend=top-left)](https://www.star-history.com/#csml-rpi/Foam-Agent&type=timeline&legend=top-left)
