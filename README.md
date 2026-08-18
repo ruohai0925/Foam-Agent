@@ -297,23 +297,14 @@ Chinese-speaking users can join the Foam-Agent WeChat community by adding the vo
 If you use Foam-Agent in your research, please cite our paper:
 ```bibtex
 @article{yue2025foam,
-  title={Foam-Agent: Towards Automated Intelligent CFD Workflows},
-  author={Yue, Ling and Somasekharan, Nithin and Zhang, Tingwen and Cao, Yadi and Chen, Zhangze and Di, Shimin and Pan, Shaowu},
-  journal={arXiv preprint arXiv:2505.04997},
-  year={2025}
-}
-
-@article{somasekharan2026cfdllmbench,
-    title={CFDLLMBench: A Benchmark Suite for Evaluating Large Language Models in Computational Fluid Dynamics},
-    author={Somasekharan, Nithin and Yue, Ling and Cao, Yadi and Li, Weichao and Emami, Patrick and Bhargav, Pochinapeddi Sai and Acharya, Anurag and Xie, Xingyu and Pan, Shaowu},
-    journal={Journal of Data-centric Machine Learning Research},
-    year={2026},
-    url={https://openreview.net/forum?id=kTcH1MnkjY},
-    note={}
+    title = {Foam-Agent: A large language model-based multi-agent framework for automating computational fluid dynamics workflows},
+    journal = {Computer Methods in Applied Mechanics and Engineering},
+    volume = {461},
+    pages = {119271},
+    year = {2026},
+    issn = {0045-7825},
+    author = {Ling Yue and Nithin Somasekharan and Tingwen Zhang and Yadi Cao and Zhangze Chen and Shimin Di and Shaowu Pan}
 }
 
 ```
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=csml-rpi/Foam-Agent&type=timeline&legend=top-left)](https://www.star-history.com/#csml-rpi/Foam-Agent&type=timeline&legend=top-left)
