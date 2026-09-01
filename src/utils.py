@@ -850,12 +850,40 @@ def remove_numeric_folders(case_dir: str) -> None:
                 pass
 
 
+# Directories an OpenFOAM run writes into the case, which are output rather than input:
+# every written time step ("0.02", "100", ...), the per-rank copies decomposePar makes,
+# and the post-processing trees. `0` and `0.orig` are kept -- those are the initial
+# conditions, which are part of the case.
+SOLVER_OUTPUT_PREFIXES = ("processor", "postProcessing", "VTK", "dynamicCode")
+
+
+def is_solver_output_dir(name: str) -> bool:
+    """True for a directory a solver wrote, rather than one describing the case.
+
+    scan_case_directory() feeds the reviewer and rewrite prompts, and everything it
+    returns is embedded verbatim. Including written time directories made that prompt
+    reach 22.5 MB (~5.6M tokens) on a case that had already run once -- a mesh's worth
+    of field data per time step -- which no model can accept.
+    """
+    if name in ("0", "0.orig"):
+        return False
+    if name.startswith(SOLVER_OUTPUT_PREFIXES):
+        return True
+    try:
+        float(name)  # any other float-named directory is a written time step
+    except ValueError:
+        return False
+    return True
+
+
 def scan_case_directory(case_dir: str) -> Dict[str, List[str]]:
     """
     Scan an OpenFOAM case directory and return the directory structure.
     
     This function traverses the case directory one level deep and collects
     the files in each subdirectory (typically 'system', 'constant', '0', etc.).
+    Directories the solver wrote (time steps, processor*, postProcessing) are skipped:
+    they are output, not case definition, and embedding them overflows every prompt.
     
     Args:
         case_dir (str): Path to the OpenFOAM case directory
@@ -880,10 +908,16 @@ def scan_case_directory(case_dir: str) -> Dict[str, List[str]]:
     
     # Walk through the directory tree
     for root, dirs, files in os.walk(case_dir):
-        # Only process directories one level below case_dir
         current_depth = root.rstrip(os.sep).count(os.sep)
+        # Do not descend into solver output; a processor* tree holds a full copy of the
+        # mesh and every field, and reading it is pure cost.
+        if current_depth == base_depth:
+            dirs[:] = [d for d in dirs if not is_solver_output_dir(d)]
+        # Only process directories one level below case_dir
         if current_depth == base_depth + 1:
             folder_name = os.path.relpath(root, case_dir)
+            if is_solver_output_dir(folder_name):
+                continue
             # Filter out hidden files and only include regular files
             regular_files = [f for f in files if not f.startswith('.') and os.path.isfile(os.path.join(root, f))]
             if regular_files:
