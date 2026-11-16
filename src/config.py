@@ -1,3 +1,4 @@
+from logger import print
 # config.py
 import os
 from dataclasses import dataclass
@@ -16,11 +17,14 @@ class Config:
     case_dir: str = ""
     overwrite_case_dir: bool = False
     max_time_limit: int = 3600  # Max time limit after which the openfoam run will be terminated, in seconds
-    recursion_limit: int = 100  # LangGraph recursion limit
+    # None budgets the graph for max_loop; an explicit limit remains unchanged.
+    recursion_limit: int | None = None
+    execution_mode: str = "careful"
+    max_static_review_retries: int = 10  # Shared by both initial stage reviews
     # Input writer generation mode:
     # - "sequential_dependency": generate files sequentially; use already-generated files as context to enforce consistency.
     # - "parallel_no_context": generate files in parallel without cross-file context (faster, may need more reviewer iterations).
-    input_writer_generation_mode: str = "sequential_dependency"
+    input_writer_generation_mode: str | None = None
     # Optional: reuse previously generated files by copying from this directory.
     # If set, InputWriter will check <reuse_generated_dir>/<folder>/<file> first.
     # When present, it will copy into the current case_dir and skip LLM generation.
@@ -52,12 +56,43 @@ class Config:
     # Loading location is independent of the model identity used by FAISS.
     embedding_model_path: str = ""
 
+    @property
+    def generation_mode(self) -> str:
+        return self.input_writer_generation_mode or (
+            "parallel_no_context" if self.execution_mode == "fast" else "sequential_dependency"
+        )
+
+    @property
+    def static_review_enabled(self) -> bool:
+        return self.execution_mode == "careful"
+
+    @property
+    def workflow_recursion_limit(self) -> int:
+        # Mesh review uses the existing backend node. Initial solver review adds
+        # one node; its longest repair route visits meshing planner, backend,
+        # solver planner, writer and static review (five nodes per shared retry).
+        static_steps = 5 * self.max_static_review_retries + 1 if self.static_review_enabled else 0
+        return self.recursion_limit + static_steps
+
     def __post_init__(self) -> None:
         """Load config overrides from environment variables.
 
         Priority: env var (if set & non-empty) > default value.
         Always prints what value is used to make runs reproducible.
         """
+
+        if self.recursion_limit is None:
+            # A repair can traverse meshing_planner, meshing, solver_planner,
+            # input_writer, runner and reviewer. Allow the initial pipeline,
+            # optional visualization and the graph's final stop as well.
+            self.recursion_limit = 6 * max(1, self.max_loop) + 8
+
+        if self.execution_mode not in {"careful", "fast"}:
+            raise ValueError("execution_mode must be careful or fast.")
+        if self.input_writer_generation_mode not in {None, "sequential_dependency", "parallel_no_context"}:
+            raise ValueError("input_writer_generation_mode must be sequential_dependency or parallel_no_context.")
+        if not isinstance(self.max_static_review_retries, int) or self.max_static_review_retries < 0:
+            raise ValueError("max_static_review_retries must be a non-negative integer.")
 
         def _env_nonempty(key: str) -> str | None:
             v = os.getenv(key)

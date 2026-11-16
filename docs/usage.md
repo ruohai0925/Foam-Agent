@@ -69,11 +69,74 @@ Each `--output` is a dedicated task directory; use a new directory for a new tas
 | `FOAMAGENT_OPENFOAM_TARGET` | Explicit native target: `foundation-v10` or `esi-v2006` | Unset; Foundation path |
 | `FOAMAGENT_OPENFOAM_FORK` | Legacy fork routing: `foundation` or translated `esi` | `foundation` |
 
-Other `Config` fields use Python configuration or an exposed CLI/API parameter. Defaults include `max_loop=25`, `recursion_limit=100`, and `max_time_limit=3600` seconds. `input_writer_generation_mode` selects `sequential_dependency` (default, files share context) or `parallel_no_context` (independent parallel generation).
+Other `Config` fields use Python configuration or an exposed CLI/API parameter. Defaults include `max_loop=25`, `recursion_limit=158`, and `max_time_limit=3600` seconds.
+
+### Execution modes and static review
+
+`execution_mode="careful"` is the default for generated and imported cases. It
+shares generated files as context and uses the configured LLM to review inputs
+before initial mesh and solver execution or HPC submission. `fast` generates files independently
+in parallel and skips static review. Both modes retain runtime review and repair.
+
+```bash
+# Default: dependency-aware generation and initial static review
+python foambench_main.py --prompt_path requirements.txt --output output/careful
+
+# For inexpensive runs
+python foambench_main.py --prompt_path requirements.txt --output output/fast --execution_mode fast
+```
+
+`input_writer_generation_mode` defaults to `None`, following the preset. Set it to
+`sequential_dependency` or `parallel_no_context` through the corresponding CLI flag
+or Python `Config` to override generation independently:
+
+```python
+import sys
+sys.path.insert(0, "src")  # Run from the repository root.
+from config import Config
+
+config = Config(execution_mode="careful", input_writer_generation_mode="parallel_no_context")
+```
+
+Static review requests only definite, necessary corrections to syntax,
+consistency, or explicit user requirements. It reuses the retrieved references;
+tutorial differences alone do not justify edits. Unconfirmed claims and questions
+requiring execution are warnings. Review does not establish convergence or
+physical correctness; omitted binary, oversized, hidden, or linked files are listed.
+
+`max_static_review_retries` defaults to `10`, shared by initial mesh and solver
+reviews and independent of runtime `max_loop`. Execution proceeds when review passes, no inputs or operations change, or the repair
+limit is reached; unresolved findings remain in the report. Each stage still
+reviews after the budget is exhausted; `0` reviews both stages without repairing. A failed service call or invalid review stops the workflow.
+After each stage's first Run, repairs proceed without repeating static review. The initial
+static phase receives its own bounded allowance above `recursion_limit`.
+
+Reports live in `CASE/.foamagent/` for generated cases or `OUTPUT/report/` for
+imports. `mesh_static_review.json` and `solver_static_review.json` retain each
+stage's last initial review; `static_review.json` aggregates them;
+`review_history.jsonl` stores findings, verification decisions, edit diffs and
+runtime feedback; `static_review_references.json` stores the references used.
+Standalone MCP tools require an explicit [`static_review`](mcp.md#workflows) call;
+`run_case` follows the complete workflow.
+
+### Workflow report
+
+Full CLI runs and MCP `run_case` also write `workflow_report.html` in the report
+directory above. Open it in a browser to follow the actual execution path,
+including retries, and expand decisions, evidence, checks and file changes.
+The report uses existing model outputs and review history, works offline, and
+adds no model calls. Evidence labels distinguish user requirements, supplied
+inputs, tutorial references and model assumptions where recorded. Each solver
+plan keeps its own reference evidence; skipped executions are explicitly marked.
+Explanations may be incomplete; execution success does not establish physical
+correctness.
+Failed runs retain a report once output preparation has established ownership.
+Report-writing errors are reported on stderr when possible, without changing the
+workflow result.
 
 ### Authentication
 
-Set credentials before running the CLI or starting MCP; importing the services initializes a model client.
+Set credentials before model-backed operations; services initialize model clients only when needed.
 
 | Provider | Credentials |
 |---|---|
@@ -131,15 +194,32 @@ python foambench_main.py --output ./output/imported-case \
   --case_subdir multiphase/interFoam/laminar/damBreak/damBreak
 ```
 
-The output contains read-only `original/`, writable `work/`, and `report/` directories. The report records initial case context and workflow logs; execution logs remain in `work/`. Source symlinks are rejected. Replacing a non-empty output requires Foam-Agent's ownership marker and `--overwrite_output` (API: `overwrite_output=true`).
+The output contains read-only `original/`, writable `work/`, and `report/` directories. The report records initial case context and workflow logs; execution logs remain in `work/`. Source symlinks are rejected. Replacing a non-empty output requires Foam-Agent's ownership marker and `--overwrite_output` (API: `overwrite_output=true`). Keep output separate from the source and additional mesh inputs.
 
 In Docker, mount host case directories or ZIPs into the container and pass their container paths. Mount the output directory separately to retain results on the host.
 
-Platform detection uses OpenFOAM headers. Specify `--openfoam_target` when detection is inconclusive. A configured target conflict is routed to Reviewer for repair. With `Allrun`, no detected issues, and no explicit prompt or custom mesh, a case skips file planning and routes to Runner; LLM resources and routing calls are still required. Other cases use planning to select file changes or meshing, and fail if required physical information cannot be inferred.
+Platform detection uses OpenFOAM headers. Specify `--openfoam_target` when detection is inconclusive. A configured target conflict stops the workflow. Both generated and imported cases plan and validate the mesh before solver selection and physical input preparation. Meshing Planner chooses Standard, Gmsh or Custom meshing from the request and files; supplied meshes do not force reuse. Planning fails if required physical information cannot be inferred.
 
-Local execution clears previous run artifacts and nonzero time directories from `work/` before each run. Use `original/` to recover the input; this workflow does not resume prior results. The case's `Allrun` executes from `work/` unless the repair workflow changes it. HPC execution follows its Slurm script and `Allrun` instead.
+Full workflows retain editable source inputs under the report directory's
+`inputs/workflow-*/`. Writer edits and successful mesh handoffs update these sources, which are restored into the
+case directory before each execution. Supplied meshes and binary/private assets
+are retained. Standalone `run` executes the supplied case directly.
 
-Generated and imported cases share the repair loop. Reviewer diagnoses errors, Input Writer rewrites files, and meshing errors return to Meshing before running again. Repair stops at the retry/recursion limit or when no progress is made, retaining the last attempt's files and logs. If planning cannot proceed, correct the reported inputs and start a new run.
+After mesh handoff, local execution clears previous run artifacts and nonzero time directories;
+it does not resume prior results. Use `original/` to recover imported inputs.
+`Allrun` executes from `work/` for imports or the generated case directory.
+HPC follows its Slurm script and the [monitoring limits](#hpc-execution-and-monitoring).
+Gzip inputs and multi-region cases are supported.
+
+Local/HPC success requires zero exit, normal native solver completion and a valid
+result field created or rewritten during this attempt, including time zero.
+
+Generated and imported cases share runtime repair: Mesh/Solver Reviewers diagnose
+current errors and logs, Writer edits inputs, and mesh repairs return to Meshing Planner.
+Repairs are bounded by retry/recursion limits; solver repairs also stop on no progress
+or repeated failed inputs, retaining diagnostics. Static repair follows the
+separate policy above. If planning cannot proceed, correct the reported inputs
+and start a new run.
 
 Request visualization in the prompt. If execution succeeds but visualization fails, the status is `partial_success`, the termination reason is `visualization_failed`, and the CLI exits nonzero. MCP `run_case` returns the execution result and visualization error separately.
 
@@ -162,7 +242,7 @@ python foambench_main.py --output ./output/tandem-wing \
 | `foundation-v10` | Foundation OpenFOAM v10 | `database/foundation-v10/` |
 | `esi-v2006` | ESI/OpenCFD v2006 | `database/esi-v2006/` |
 
-Both targets share planning, generation, meshing, execution, repair, visualization, and import services while retaining release-native solver names and dictionaries. Set `FOAMAGENT_OPENFOAM_TARGET=esi-v2006` or pass `--openfoam_target esi-v2006` with its matching runtime. Legacy `FOAMAGENT_OPENFOAM_FORK=esi` translates Foundation-generated files on a best-effort basis; it neither selects nor runs for the native v2006 target.
+Both targets share planning, generation, meshing, execution, repair, visualization, and import services while retaining release-native solver names and dictionaries. Set `FOAMAGENT_OPENFOAM_TARGET=esi-v2006` or pass `--openfoam_target esi-v2006` with its matching runtime. Legacy `FOAMAGENT_OPENFOAM_FORK=esi` translates Foundation-generated files, stopping and preserving inputs if a required conversion cannot be established; it neither selects nor runs for the native v2006 target.
 
 Hydrate Git LFS files before use. Raw tutorials and FAISS indices are scoped to each target. Foundation includes Qwen 0.6B, Qwen 8B, and OpenAI small indices; ESI includes Qwen 0.6B and OpenAI small. Select matching runtime embedding settings. Prebuilt indices do not include embedding model weights; Hugging Face models may download those on first use.
 
@@ -174,13 +254,13 @@ python init_database.py --openfoam_path "$WM_PROJECT_DIR" \
   --embedding_provider huggingface --embedding_model Qwen/Qwen3-Embedding-0.6B --force
 ```
 
-Use `esi-v2006` for its corpus. If tutorials are omitted from an installation, pass `--tutorials_path` pointing to the matching release's extracted tutorials. Always supply both embedding arguments: the initializer checks Qwen 0.6B completeness by default, while standalone builders default to OpenAI/`text-embedding-3-small`. OpenAI embeddings need `OPENAI_API_KEY`. Omit `--force` to reuse complete assets. `init_database.py --database_path` is a target directory; `Config.database_path` is the parent containing the targets.
+Use `esi-v2006` for its corpus. If tutorials are omitted from an installation, pass `--tutorials_path` pointing to the matching release's extracted tutorials. Always supply both embedding arguments: the initializer checks Qwen 0.6B completeness by default, while standalone builders default to OpenAI/`text-embedding-3-small`. OpenAI embeddings need `OPENAI_API_KEY`. Omit `--force` to reuse complete assets. Existing assets require a matching target manifest. `init_database.py --database_path` is a target directory; `Config.database_path` is the parent containing the targets.
 
 ## HPC Execution and Monitoring
 
 HPC execution uses locally available `sbatch` and `squeue`. Case files must be accessible to compute nodes, where the matching OpenFOAM environment must already be available. The generated job validates the runtime version; this is not an SSH or file-upload service.
 
-Monitoring polls every 30 seconds for up to 3600 seconds by default. An empty `squeue` result is treated as completion, then case logs are checked; `sacct` and the Slurm exit code are not checked. A monitoring timeout may enter the repair/resubmission loop while the original job remains active.
+Mesh and solver use separate jobs. Monitoring polls every 30 seconds within `Config.max_time_limit` (default 3600 seconds, including queue time). Empty `squeue` also requires the current attempt's zero exit-code record; `sacct` is not queried. Monitoring failure/timeout triggers cancellation and up to 60 seconds of stop confirmation. Unconfirmed stopping ends with `hpc_job_state_unconfirmed`; check Slurm before retrying. Uncertain submissions stop with `hpc_submission_unconfirmed` without automatic resubmission.
 
 ## Installation Checks and Offline Use
 
@@ -234,10 +314,10 @@ Pydantic validation, or explicitly select another method supported by that backe
 authentication errors are not silently downgraded. Test with `--check-llm` before
 starting a workflow. JSON validation checks response structure, not CFD correctness.
 
-The Codex subscription backend uses schema-in-prompt validation and supports
-`auto` and `json_prompt`. Native `json_schema`, `function_calling` and `json_mode`
-settings are rejected during client initialization; use a backend that supports
-the requested native method instead.
+The Codex subscription backend uses native strict JSON Schema with `auto` or
+`json_schema`, followed by local Pydantic validation. Use `json_prompt` explicitly
+for schema-in-prompt compatibility. `function_calling` and `json_mode` are not
+supported by this client. Authentication errors are not silently downgraded.
 
 ## Docker Builds
 
@@ -261,7 +341,6 @@ and outputs separately, as in the [Quick Start](../README.md#quick-start-recomme
 The default command opens a shell; append any CLI/MCP command to run it directly.
 Container entrypoint messages use stderr.
 
-For published images such as `v2.2.0`, follow that release's documentation.
 Older images that auto-update at startup require `FOAMAGENT_SKIP_UPDATE=1` to
 retain their bundled code. New builds never auto-update; `FOAMAGENT_VERSION`
 no longer changes code inside the container. A full offline transfer can use
@@ -276,4 +355,4 @@ no longer changes code inside the container. A full offline transfer can use
 | Structured-output HTTP 400 | Select a supported `FOAMAGENT_STRUCTURED_OUTPUT_METHOD`, then use `doctor.py --check-llm` |
 | Missing runtime dependencies | Install with constraints and run `python scripts/doctor.py`; add the extra for an optional provider |
 | Authentication failure | Check the selected provider/model and its credentials before startup |
-| MCP connection failure | Check server transport, host, port, and client settings in the [MCP guide](mcp.md) |
+| MCP connection failure | Check server transport, host, port, and client settings in the [MCP guide](mcp.md); the HTTP endpoint is `/mcp` |

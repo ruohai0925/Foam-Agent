@@ -29,6 +29,7 @@ foamagent-mcp --transport http --host 0.0.0.0 --port 7860
 For Docker, first [build the runtime image](usage.md#docker-builds):
 
 ```bash
+docker build --platform linux/amd64 -f docker/Dockerfile -t foamagent:local .
 mkdir -p runs
 docker run -it \
   -e FOAMAGENT_MODEL_PROVIDER=openai \
@@ -58,6 +59,7 @@ For a remote host, use a reachable address or SSH port forwarding. The module en
 |---|---|
 | `plan` | Analyze requirements and select case metadata and files |
 | `input_writer` | Generate input files and `Allrun` using the selected target |
+| `static_review` | Read current inputs and report syntax, consistency, and requirement issues without running or editing |
 | `run` | Execute a local case and return errors and log paths |
 | `review` | Diagnose supplied errors using case files and references |
 | `apply_fixes` | Build a file-scoped repair plan and rewrite files |
@@ -86,19 +88,54 @@ For an existing case, call `run_case` with:
 }
 ```
 
-`user_requirement`, `case_subdir`, `custom_mesh_path`, `openfoam_target`, and `overwrite_output` are optional for `run_case`. The target override applies to that invocation; individual tools use the server's configuration. See [existing cases](usage.md#existing-cases) for import, cleanup, and planning behavior.
+`user_requirement`, `case_subdir`, `custom_mesh_path`, `openfoam_target`, and
+`overwrite_output` are optional for `run_case`. It also accepts `execution_mode`
+(default `careful`), `input_writer_generation_mode`, and `max_static_review_retries`
+(default `10`). These overrides apply to that invocation; individual tools use
+the server's target configuration. Standalone `input_writer` accepts the mode and
+generation override. See [execution modes](usage.md#execution-modes-and-static-review)
+and [existing cases](usage.md#existing-cases).
 
 All paths refer to the server's filesystem. Generated `input_writer` cases default to `runs/<case_name>/` in the repository; the Docker mount above exposes those results on the host. For `run_case`, mount its inputs and use an `output_dir` inside a mounted writable directory to retain the results.
 
 ## Workflows
 
-For generated cases, the client calls `plan` → `input_writer` → `run`, then `review` → `apply_fixes` → `run` as needed, with optional visualization. The client controls the repair limit. `apply_fixes` requires `case_dir`, `error_logs`, `review_analysis`, and `user_requirement`; `no_changes` indicates that no files were updated.
+For generated cases, the client calls `plan` → `input_writer` → `static_review` → `run`, then `review` → `apply_fixes` → `run` as needed, with optional visualization. Static review and its fixes happen only before the first run in the recommended workflow. Fast workflows may skip `static_review`. The client controls the repair limit. `apply_fixes` requires `case_dir`, `error_logs`, `review_analysis`, and `user_requirement`; `no_changes` indicates that no files were updated.
 
-Individual tools do not execute the complete graph. `run` is local-only, and there is no standalone meshing or HPC tool. Use the CLI graph for generated-case Gmsh/custom-mesh and HPC routing; use `run_case` for the imported-case graph, including its configured repair limit. [HPC monitoring limits](usage.md#hpc-execution-and-monitoring) apply to that graph.
+Pass the Planner's dependency-ordered subtasks to sequential `input_writer`.
 
-Standalone `review` reads the case and supplied errors, but uses fixed `simpleFoam`/`fluid`/`tutorial` metadata and the directory basename for retrieval rather than inferring the solver.
+`static_review` requires `case_dir` and the original `user_requirement`, and accepts
+optional `tutorial_reference` and `allrun_reference` from `plan`. It returns
+`summary`, `findings`, `inspected_files`, and `omitted_files`. Each finding has
+`severity` (`error` or `warning`), `file`, `location`, `evidence`, `message`, and
+`suggestion`. Only errors request necessary repairs; uncertain claims are warnings.
+To apply corrections, format error findings as `review_analysis` text and pass
+`error_logs=[]` to `apply_fixes`. Clients control review/repair rounds; standalone review is
+read-only and leaves history persistence to the client.
 
-`run_case` returns `status`, `message`, `visualization_error`, `case_dir`, `report_dir`, `errors`, and `termination_reason`. Simulation success with failed visualization is `partial_success` with message `Simulation completed successfully, but visualization failed.` Standalone `visualization` raises an error on failure.
+Full `run_case` uses the [static review policy and reports](usage.md#execution-modes-and-static-review)
+for mesh and solver inputs in careful mode, sharing one static
+repair budget. It retains canonical inputs under `report/inputs/workflow-*/`.
+Writer edits and successful mesh handoffs update these sources; execution restores
+them into `work/`. Standalone `run` executes the supplied case directly.
+
+Individual tools do not execute the complete graph. `run` is local-only and executes directly, without automatic static review; there is no standalone meshing or HPC tool. Use the CLI graph for generated-case Gmsh/custom-mesh and HPC routing; use `run_case` for the imported-case graph, including automatic static review in careful mode and its configured repair limits. [HPC monitoring limits](usage.md#hpc-execution-and-monitoring) apply to that graph.
+
+Standalone `run` executes Allrun directly. Success requires zero exit, normal native
+solver completion and a result field created or rewritten during this attempt,
+including time zero.
+
+Standalone `review` retrieves references using the current `system/controlDict`
+application and directory basename. Simple literal applications work without a
+native runtime; preprocessing requires the native parser. If unresolved, review
+continues with the files/errors and reports the missing solver reference.
+
+Structured execution errors keep `file` and `error_content`; an optional
+`diagnostic_context` carries recent process logs. Preserve it when forwarding
+errors so review has the complete execution evidence. Standalone `run` keeps its
+string-based error list and includes this context in each corresponding string.
+
+`run_case` returns `status`, `message`, `visualization_error`, `case_dir`, `report_dir`, `errors`, `termination_reason`, and the aggregated initial mesh/solver `static_review` (or `null` if unavailable). This report is not refreshed after runtime repairs. Static findings are separate from runtime `errors`. Simulation success with failed visualization is `partial_success` with message `Simulation completed successfully, but visualization failed.` Standalone `visualization` raises an error on failure.
 
 ## Claude Code Skill
 

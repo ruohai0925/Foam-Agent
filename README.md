@@ -1,6 +1,6 @@
 # Foam-Agent <a href="https://arxiv.org/abs/2505.04997"><img src="https://img.shields.io/badge/arXiv-2505.04997-b31b1b.svg" alt="Paper"></a>
 
-Foam-Agent automates OpenFOAM simulations from a natural language prompt or an existing case. Its agents plan the case, prepare meshes and input files, run locally or through Slurm, repair errors, and optionally visualize results.
+Foam-Agent automates OpenFOAM simulations from a natural language prompt or an existing case. Its agents plan the case, prepare meshes and input files, review them before execution, run locally or through Slurm, repair errors, and optionally visualize results.
 
 - **OpenFOAM targets:** Foundation v10 by default, with a separate native ESI/OpenCFD v2006 target.
 - **Tutorial retrieval:** FAISS indices provide references from the selected target's tutorials.
@@ -52,6 +52,9 @@ The diagnostic checks LLM access with a small request; the example uses the exis
 Use a fresh output directory for another run. See [authentication](docs/usage.md#authentication)
 for a Codex subscription or another provider.
 
+Open `.foamagent/workflow_report.html` in the generated case directory to explore
+the execution steps, decisions and repairs. See [workflow reports](docs/usage.md#workflow-report).
+
 Locally built images run their bundled code and assets without startup updates.
 See [Docker builds](docs/usage.md#docker-builds) for native targets and older image
 compatibility.
@@ -82,7 +85,22 @@ An [existing directory or ZIP](docs/usage.md#existing-cases) is also supported w
 
 The default LLM uses a Codex OAuth cache. An API key requires selecting its provider and model explicitly, as in Quick Start. Docker builds bundle the default embedding weights. Local Python installations may download them on first use; prebuilt tutorial indices come through Git LFS and must match the embedding model. See [installation checks and offline setup](docs/usage.md#installation-checks-and-offline-use).
 
-Settings live in `src/config.py`; see [configuration](docs/usage.md#configuration) for credentials, the legacy ESI translation switch, generation modes, and retry limits. Native ESI v2006 requires its matching runtime/image and corpus.
+Choose an execution mode with `--execution_mode` (or `Config.execution_mode`):
+
+| Mode | File generation | Before each stage's first execution |
+|---|---|---|
+| `careful` (default) | Sequential in planned dependency order | Mesh/solver LLM static review |
+| `fast` | Independent parallel generation | Run directly |
+
+Both modes repair runtime errors. Static review requests only definite, necessary
+corrections, with `--max_static_review_retries 10` repair rounds shared by both
+initial stages, separate from runtime `max_loop`. A later stage still reviews when
+no repairs remain. Reaching the limit or making no edits proceeds to native
+execution checks; review service failures stop. Later attempts use runtime review only.
+`--input_writer_generation_mode sequential_dependency|parallel_no_context`
+overrides generation independently. See [configuration and reports](docs/usage.md#execution-modes-and-static-review).
+
+Settings live in `src/config.py`; see [configuration](docs/usage.md#configuration) for credentials, the legacy ESI translation switch, and retry limits. Native ESI v2006 requires its matching runtime/image and corpus.
 
 ## MCP Integration
 
@@ -116,18 +134,24 @@ The repository also includes the `/foam` Claude Code skill. See the [MCP guide](
 
 ## Reported Benchmark Results
 
-These are the project's recorded [FoamBench](https://arxiv.org/abs/2509.20374) results, not guarantees for the current working tree, native ESI v2006, or arbitrary imported cases.
+Latest [FoamBench](https://arxiv.org/abs/2509.20374) evaluation on **2026-11-12**,
+using Foam-Agent commit [`8b34029`](https://github.com/csml-rpi/Foam-Agent/commit/8b340299810a7b1a1a1455e30ee0bd1ba4a5a85a)
+and CFDLLMBench dataset revision [`40807ed`](https://github.com/NREL-Theseus/cfdllmbench/tree/40807ed0c3539561f4f06e513329998b85b5bade/FoamBench/Dataset).
+The run used **`gpt-6-luna`** through a Codex subscription (`openai-codex`),
+Foundation OpenFOAM v10, a 15-loop runtime repair limit, and 5 parallel cases.
 
-| Framework | Model | Basic | Advanced |
-|---|---|---:|---:|
-| FoamAgent 2.0.0 (10 loops) | Opus 4.6 | 85.45% | 100% |
-| FoamAgent 2.0.0 (25 loops) | Opus 4.6 | 100% | 100% |
-| FoamAgent 2.0.0 (25 loops) | Sonnet 4.6 | 87.88% | 75.00% |
-| FoamAgent 2.0.0 (25 loops) | Haiku 4.6 | 54.55% | 37.50% |
-| FoamAgent 2.0.0 (25 loops) | gpt-5.4 | 45.45% | 75.00% |
-| FoamAgent 2.0.0 (25 loops) | gpt-5.3-codex | 54.55% | 62.50% |
+| Split | Cases | Execution success | NMSE score | Physical success |
+|---|---:|---:|---:|---:|
+| Basic | 110 | 93.64% | 78.64% | 72.73% |
+| Advanced | 16 | 75.00% | 68.75% | 68.75% |
 
-The highest reported scores in this table use **Anthropic Claude Opus 4.6**; model selection remains configurable.
+The NMSE score is the mean FoamBench grade: 1 for `NMSE < 0.1`,
+0.5 for `0.1 <= NMSE < 0.3`, and 0 otherwise. Physical success requires successful
+execution and `NMSE < 0.1`. All cases, including failures, remain in their split's
+denominator. Reference simulations completed successfully for 100% of cases.
+
+Separate strict checks of geometry, output time, and required fields yielded
+physical success rates of **69.09% for Basic** and **62.50% for Advanced**.
 
 ## Community
 
